@@ -1172,7 +1172,7 @@ This DRC check is for 4-Layer Standard Capability boards to be manufactured thro
 <element name="U2" library="fdcanusb" package="SOT23-6L" value="USBLC6-2SC6" x="9.48" y="18.19" smashed="yes" rot="R270">
 <attribute name="VENDOR" value="STMicroelectronics" x="-46.4" y="-3.4" size="1.778" layer="27" rot="R270" display="off"/>
 <attribute name="MANUFACTURER_PART_NUMBER" value="USBLC62SC6" x="-46.4" y="-3.4" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="NAME" x="11.145" y="16.9666" size="0.6" layer="25" font="vector" ratio="10" rot="R270"/>
+<attribute name="NAME" x="11.1334" y="19.545" size="0.6" layer="25" font="vector" ratio="10"/>
 <attribute name="MPN" value="USBLC6-2SC6" x="9.48" y="18.19" size="1.778" layer="27" rot="R270" display="off"/>
 <attribute name="MF" value="ST" x="9.48" y="18.19" size="1.778" layer="27" rot="R270" display="off"/>
 <attribute name="POPULATE" value="1" x="9.48" y="18.19" size="1.778" layer="27" rot="R270" display="off"/>
@@ -1251,7 +1251,7 @@ This DRC check is for 4-Layer Standard Capability boards to be manufactured thro
 <attribute name="DIELECTRIC" value="" x="45.26" y="-45.91" size="1.778" layer="27" display="off"/>
 <attribute name="VOLTAGE" value="" x="45.26" y="-45.91" size="1.778" layer="27" display="off"/>
 <attribute name="URL" value="" x="45.26" y="-45.91" size="1.778" layer="27" display="off"/>
-<attribute name="NAME" x="23.95" y="15.1" size="0.6" layer="25" font="vector" ratio="10" rot="R270"/>
+<attribute name="NAME" x="24" y="14.65" size="0.6" layer="25" font="vector" ratio="10"/>
 </element>
 <element name="C11" library="mfpassives" package="C1206" value="10uF" x="8.68" y="12.12" smashed="yes" rot="R270">
 <attribute name="HOUSEPART" value="YES" x="-47.2" y="-20.9" size="1.778" layer="27" rot="R270" display="off"/>
@@ -1261,14 +1261,14 @@ This DRC check is for 4-Layer Standard Capability boards to be manufactured thro
 <attribute name="DIELECTRIC" value="" x="-47.2" y="-20.9" size="1.778" layer="27" rot="R270" display="off"/>
 <attribute name="VOLTAGE" value="" x="-47.2" y="-20.9" size="1.778" layer="27" rot="R270" display="off"/>
 <attribute name="URL" value="" x="-47.2" y="-20.9" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="NAME" x="9.98" y="12.32" size="0.6" layer="25" font="vector" ratio="10" rot="R270"/>
+<attribute name="NAME" x="7.88" y="14.58" size="0.6" layer="25" font="vector" ratio="10"/>
 </element>
 <element name="D1" library="mfleds" package="LED0603" value="MF-LED-0603-GREEN" x="28" y="18.5" smashed="yes" rot="R270">
 <attribute name="HOUSEPART" value="YES" x="-26.61" y="-19.6" size="1.778" layer="27" rot="R270" display="off"/>
 <attribute name="MPN" value="MF-LED-0603-GREEN" x="-26.61" y="-19.6" size="1.778" layer="27" rot="R270" display="off"/>
 <attribute name="POPULATE" value="1" x="-26.61" y="-19.6" size="1.778" layer="27" rot="R270" display="off"/>
 <attribute name="URL" value="https://factory.macrofab.com/part/MF-LED-0603-GREEN" x="-26.61" y="-19.6" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="NAME" x="29.1" y="20.31" size="0.6" layer="25" font="vector" ratio="10" rot="R90"/>
+<attribute name="NAME" x="29.1" y="20.41" size="0.6" layer="25" font="vector" ratio="10" rot="R90"/>
 </element>
 <element name="D3" library="mfleds" package="LED0603" value="MF-LED-0603-GREEN" x="16.35" y="29.4" smashed="yes" rot="R270">
 <attribute name="HOUSEPART" value="YES" x="-38.26" y="-12.51" size="1.778" layer="27" rot="R270" display="off"/>
@@ -1319,7 +1319,7 @@ This DRC check is for 4-Layer Standard Capability boards to be manufactured thro
 <attribute name="VOLTAGE" value="" x="4.48" y="95.37" size="1.778" layer="27" rot="R180" display="off"/>
 <attribute name="URL" value="" x="4.48" y="95.37" size="1.778" layer="27" rot="R180" display="off"/>
 <attribute name="WATTAGE" value="" x="4.48" y="95.37" size="1.778" layer="27" rot="R180" display="off"/>
-<attribute name="NAME" x="19.75" y="30.4" size="0.6" layer="25" font="vector" ratio="10"/>
+<attribute name="NAME" x="19.75" y="30.5" size="0.6" layer="25" font="vector" ratio="10"/>
 </element>
 <element name="R4" library="mfpassives" package="R0402" value="220" x="12.5" y="30.6" smashed="yes">
 <attribute name="HOUSEPART" value="" x="30.28" y="-34.17" size="1.778" layer="27" display="off"/>
@@ -1329,7 +1329,7 @@ This DRC check is for 4-Layer Standard Capability boards to be manufactured thro
 <attribute name="VOLTAGE" value="" x="30.28" y="-34.17" size="1.778" layer="27" display="off"/>
 <attribute name="URL" value="" x="30.28" y="-34.17" size="1.778" layer="27" display="off"/>
 <attribute name="WATTAGE" value="" x="30.28" y="-34.17" size="1.778" layer="27" display="off"/>
-<attribute name="NAME" x="11.16" y="30.96" size="0.6" layer="25" font="vector" ratio="10" rot="R180"/>
+<attribute name="NAME" x="11.26" y="31.16" size="0.6" layer="25" font="vector" ratio="10" rot="R180"/>
 </element>
 <element name="DGND" library="fdcanusb" package="24AWG_PAD" value="PAD24AWG_PAD" x="2" y="8">
 <attribute name="POPULATE" value="0" x="2" y="8" size="1.778" layer="27" display="off"/>
@@ -1358,7 +1358,7 @@ This DRC check is for 4-Layer Standard Capability boards to be manufactured thro
 <attribute name="DIELECTRIC" value="" x="26.4" y="8.3" size="1.778" layer="27" rot="R90" display="off"/>
 <attribute name="VOLTAGE" value="" x="26.4" y="8.3" size="1.778" layer="27" rot="R90" display="off"/>
 <attribute name="URL" value="" x="26.4" y="8.3" size="1.778" layer="27" rot="R90" display="off"/>
-<attribute name="NAME" x="25.1" y="6.3" size="0.6" layer="25" font="vector" ratio="10" rot="R90"/>
+<attribute name="NAME" x="25.2" y="8.2" size="0.6" layer="25" font="vector" ratio="10" rot="R180"/>
 </element>
 <element name="C12" library="mfpassives" package="C0402" value="0.1uF" x="28.3" y="7.2" smashed="yes" rot="R90">
 <attribute name="HOUSEPART" value="YES" x="28.3" y="7.2" size="1.778" layer="27" rot="R90" display="off"/>
@@ -1368,7 +1368,7 @@ This DRC check is for 4-Layer Standard Capability boards to be manufactured thro
 <attribute name="DIELECTRIC" value="" x="28.3" y="7.2" size="1.778" layer="27" rot="R90" display="off"/>
 <attribute name="VOLTAGE" value="" x="28.3" y="7.2" size="1.778" layer="27" rot="R90" display="off"/>
 <attribute name="URL" value="" x="28.3" y="7.2" size="1.778" layer="27" rot="R90" display="off"/>
-<attribute name="NAME" x="28.3" y="5.9" size="0.6" layer="25" font="vector" ratio="10" rot="R270"/>
+<attribute name="NAME" x="27.8" y="9" size="0.6" layer="25" font="vector" ratio="10"/>
 </element>
 </elements>
 <signals>
