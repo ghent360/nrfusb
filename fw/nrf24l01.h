@@ -76,6 +76,8 @@ class Nrf24l01 {
   /// Return true if there is data available to read.
   bool is_data_ready();
 
+  uint8_t status();
+
   struct Packet {
     size_t size = 0;
     char data[32] = {};
@@ -91,6 +93,8 @@ class Nrf24l01 {
   /// Queue the given packet to be sent as the next auto
   /// acknowledgement.  This can only be called if Options::ptx == false
   void QueueAck(const Packet*);
+
+  uint8_t ReadRegister(uint8_t);
 
  private:
   void WriteConfig();
@@ -112,6 +116,7 @@ class Nrf24l01 {
     uint8_t WriteRegister(uint8_t address, uint8_t data);
 
     uint8_t ReadRegister(uint8_t address, mjlib::base::string_span);
+    uint8_t ReadRegister(uint8_t address);
     void VerifyRegister(uint8_t address, std::string_view);
     void VerifyRegister(uint8_t address, uint8_t value);
 

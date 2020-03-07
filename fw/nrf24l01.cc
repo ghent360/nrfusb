@@ -69,6 +69,12 @@ uint8_t Nrf24l01::SpiMaster::ReadRegister(
   return Command(0x00 + address, {}, data);
 }
 
+uint8_t Nrf24l01::SpiMaster::ReadRegister(uint8_t address) {
+  uint8_t result = 0;
+  ReadRegister(address, {reinterpret_cast<char*>(&result), 1});
+  return result;
+}
+
 void Nrf24l01::SpiMaster::VerifyRegister(uint8_t address, std::string_view data) {
   WriteRegister(address, data);
   ReadRegister(address, {buf_, static_cast<ssize_t>(data.size())});
@@ -92,6 +98,17 @@ Nrf24l01::Nrf24l01(MillisecondTimer* timer, const Options& options)
 Nrf24l01::~Nrf24l01() {}
 
 void Nrf24l01::Poll() {
+  if (irq_.read() == 0) {
+    // See if we have a tx isr to clear.
+    const uint8_t status = nrf_.Command(0xff, {}, {});
+
+    const uint8_t maybe_to_clear =
+        (status & (1 << 5));
+    if (maybe_to_clear) {
+      // Yes!
+      nrf_.WriteRegister(0x07, maybe_to_clear);
+    }
+  }
 }
 
 void Nrf24l01::PollMillisecond() {
@@ -99,6 +116,9 @@ void Nrf24l01::PollMillisecond() {
   // The NRF isn't turned on for 100ms after power up.
   switch (configure_state_) {
     case kPowerOnReset: {
+      // While we are in power on reset, leave CE off.
+      ce_.write(0);
+
       // This check can be absolute, because the device only has to
       // do power on reset once.
       if (now < 150) { return; }
@@ -130,11 +150,20 @@ void Nrf24l01::SelectRfChannel(uint8_t channel) {
 }
 
 bool Nrf24l01::is_data_ready() {
-  return irq_.read() == 0;
+  if (irq_.read() == 1) { return false; }
+
+  // Read the status.
+  const uint8_t status = nrf_.Command(0xff, {}, {});
+
+  return (status & (1 << 6));
 }
 
 bool Nrf24l01::Read(Packet* packet)  {
   if (irq_.read() != 0) { return false; }
+
+  // First, clear our interrupt.
+  nrf_.WriteRegister(0x07, 0x70);  // STATUS, clear all interrupts
+  nrf_.WriteRegister(0x07, 0x00);  // STATUS, clear all interrupts
 
   uint8_t payload_width = 0;
   nrf_.Command(0x60,  // R_RX_PL_WID
@@ -151,14 +180,6 @@ bool Nrf24l01::Read(Packet* packet)  {
 
 void Nrf24l01::Transmit(const Packet* packet) {
   nrf_.Command(0xa0, {&packet->data[0], packet->size}, {});
-  // Now pulse the CE pin high for at least 10us.
-  ce_.write(1);
-  const auto start = timer_->read_us();
-  while (true) {
-    const auto now = timer_->read_us();
-    if ((now - start) > 10)  { break; }
-  }
-  ce_.write(0);
 }
 
 void Nrf24l01::QueueAck(const Packet* packet) {
@@ -175,7 +196,9 @@ void Nrf24l01::WriteConfig() {
 void Nrf24l01::Configure() {
   nrf_.VerifyRegister(0x00, GetConfig());
 
-  nrf_.VerifyRegister(0x01, 0x3f);  // EN_AA enable 0-5
+  nrf_.VerifyRegister(
+      0x01, // EN_AA enable 0-5
+      options_.automatic_acknowledgment ? 0x3f : 0x00);
   nrf_.VerifyRegister(0x02, 0x01);  // EN_RXADDR enable 0
   nrf_.VerifyRegister(
       0x03,  // SETUP_AW
@@ -186,7 +209,10 @@ void Nrf24l01::Configure() {
         mbed_die();
       }());
   MJ_ASSERT(options_.automatic_retransmission == false);
-  // Thus we don't need to set up SETUP_RETR
+  nrf_.VerifyRegister(
+      0x04,  // SETUP_RETR
+      options_.auto_retransmit_count);
+
   SelectRfChannel(options_.initial_channel);
 
   nrf_.VerifyRegister(
@@ -227,18 +253,29 @@ void Nrf24l01::Configure() {
       | ((options_.dynamic_payload_length ? 1 : 0) << 2)
       | ((options_.automatic_acknowledgment ? 1 : 0) << 1)
                       );
+
+  // In both modes, we just leave CE high all the time while operating.
+  ce_.write(1);
 }
 
 uint8_t Nrf24l01::GetConfig() const {
   return 0
       | (0 << 6) // MASK_RX_DR - enable RX_DR interrupt
-      | (1 << 5) // MASK_TX_DS - disable TX_DS interrupt
-      | (1 << 4) // MASK_MAX_RT - disable MAX_RT interrupt
+      | (0 << 5) // MASK_TX_DS - enable TX_DS interrupt
+      | (0 << 4) // MASK_MAX_RT - enable MAX_RT interrupt
       | ((options_.enable_crc ? 1 : 0) << 3) // EN_CRC
       | (((options_.crc_length == 2) ? 1 : 0) << 2) // CRCO (0=1 byte, 1=2 bytes)
       | (1 << 1) // PWR_UP
       | ((options_.ptx ? 0 : 1) << 0) // PRIM_RX
       ;
+}
+
+uint8_t Nrf24l01::status() {
+  return nrf_.Command(0xff, {}, {});
+}
+
+uint8_t Nrf24l01::ReadRegister(uint8_t reg) {
+  return nrf_.ReadRegister(reg);
 }
 
 }  // namespace fw

@@ -181,6 +181,10 @@ class NrfManager::Impl {
     auto cmd = tokenizer.next();
     if (cmd == "tx") {
       Command_Tx(tokenizer.remaining(), response);
+    } else if (cmd == "stat") {
+      Command_Stat(response);
+    } else if (cmd == "r") {
+      Command_Read(tokenizer.remaining(), response);
     } else {
       WriteMessage("ERR unknown command\r\n", response);
     }
@@ -217,6 +221,20 @@ class NrfManager::Impl {
     nrf_->Transmit(&packet);
 
     WriteOK(response);
+  }
+
+  void Command_Stat(const micro::CommandManager::Response& response) {
+    uint8_t value = nrf_->status();
+    snprintf(emit_line_, sizeof(emit_line_), "OK %02X\r\n", value);
+    WriteMessage(emit_line_, response);
+  }
+
+  void Command_Read(std::string_view reg_str,
+                    const micro::CommandManager::Response& response) {
+    const int reg = std::strtol(reg_str.data(), nullptr, 0);
+    const uint8_t result = nrf_->ReadRegister(reg);
+    snprintf(emit_line_, sizeof(emit_line_), "OK %02X\r\n", result);
+    WriteMessage(emit_line_, response);
   }
 
   const Options options_;
