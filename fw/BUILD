@@ -29,6 +29,10 @@ cc_library(
 mbed_binary(
     name = "nrfusb",
     srcs = [
+        "nrf_manager.h",
+        "nrf_manager.cc",
+        "nrf24l01.h",
+        "nrf24l01.cc",
         "nrfusb.cc",
         "firmware_info.h",
         "firmware_info.cc",

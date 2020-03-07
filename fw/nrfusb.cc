@@ -21,6 +21,7 @@
 #include "fw/firmware_info.h"
 #include "fw/git_info.h"
 #include "fw/millisecond_timer.h"
+#include "fw/nrf_manager.h"
 #include "fw/stm32g4_flash.h"
 #include "fw/stm32g4_async_usb_cdc.h"
 
@@ -56,21 +57,45 @@ int main(void) {
 
   fw::FirmwareInfo firmware_info(pool, telemetry_manager);
 
+  fw::NrfManager nrf_manager(
+      pool, persistent_config, command_manager,
+      write_stream, &timer,
+      [&]() {
+        fw::NrfManager::Options options;
+        options.mosi = PA_7;
+        options.miso = PA_6;
+        options.sck = PA_5;
+        options.cs = PA_4;
+        options.irq = PB_1;
+        options.ce = PB_0;
+        return options;
+      }());
+
   fw::GitInfo git_info;
   telemetry_manager.Register("git", &git_info);
 
   persistent_config.Load();
 
   command_manager.AsyncStart();
+  nrf_manager.Start();
 
   while (true) {
     const uint32_t start = timer.read_ms();
+    uint32_t old = start;
 
     while (true) {
       const uint32_t now = timer.read_ms();
-      if (now - start > 10) { break; }
 
       usb.Poll();
+      nrf_manager.Poll();
+
+      if (now != old) {
+        nrf_manager.PollMillisecond();
+
+        old = now;
+      }
+
+      if (now - start > 10) { break; }
     }
 
     usb.Poll10Ms();
