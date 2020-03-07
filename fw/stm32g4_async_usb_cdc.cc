@@ -166,7 +166,7 @@ const struct usb_string_descriptor manuf_desc_en{
 const struct usb_string_descriptor prod_desc_en{
   .bLength = 18,
       .bDescriptorType = USB_DTYPE_STRING,
-      .wString = {0x66, 0x64, 0x63, 0x61, 0x6e, 0x75, 0x73, 0x62, 0x00},
+      .wString = {0x6e, 0x72, 0x66, 0x75, 0x73, 0x62, 0x00},
 };
 const struct usb_string_descriptor *const dtable[] = {
     &lang_desc,
