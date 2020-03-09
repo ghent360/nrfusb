@@ -99,11 +99,36 @@ Nrf24l01::~Nrf24l01() {}
 
 void Nrf24l01::Poll() {
   if (irq_.read() == 0) {
-    // See if we have a tx isr to clear.
+    // We have some interrupt to deal with.  Read the status.
     const uint8_t status = nrf_.Command(0xff, {}, {});
 
-    const uint8_t maybe_to_clear =
-        (status & (1 << 5));
+    if ((status & (1 << 6)) ||
+        ((status & (1 << 5)) &&
+         (options_.automatic_acknowledgment &&
+          options_.ptx))) {
+      uint8_t payload_width = 0;
+      nrf_.Command(0x60,  // R_RX_PL_WID
+                   {},
+                   {reinterpret_cast<char*>(&payload_width), 1});
+
+      rx_packet_.size = payload_width;
+      if (payload_width) {
+        nrf_.Command(0x61, {}, {&rx_packet_.data[0],
+                static_cast<ssize_t>(payload_width)});
+      }
+
+      if (is_data_ready_) { rx_overflow_ = true; }
+      is_data_ready_ = true;
+    }
+    if (status & (1 << 4)) {
+      // Retransmit count exceeded!
+      retransmit_exceeded_++;
+
+      // Flush our TX FIFO.
+      nrf_.Command(0xe1, {}, {});
+    }
+
+    const uint8_t maybe_to_clear = status & 0x70;
     if (maybe_to_clear) {
       // Yes!
       nrf_.WriteRegister(0x07, maybe_to_clear);
@@ -150,36 +175,26 @@ void Nrf24l01::SelectRfChannel(uint8_t channel) {
 }
 
 bool Nrf24l01::is_data_ready() {
-  if (irq_.read() == 1) { return false; }
-
-  // Read the status.
-  const uint8_t status = nrf_.Command(0xff, {}, {});
-
-  return (status & (1 << 6));
+  return is_data_ready_;
 }
 
 bool Nrf24l01::Read(Packet* packet)  {
-  if (irq_.read() != 0) { return false; }
-
-  // First, clear our interrupt.
-  nrf_.WriteRegister(0x07, 0x70);  // STATUS, clear all interrupts
-  nrf_.WriteRegister(0x07, 0x00);  // STATUS, clear all interrupts
-
-  uint8_t payload_width = 0;
-  nrf_.Command(0x60,  // R_RX_PL_WID
-               {},
-               {reinterpret_cast<char*>(&payload_width), 1});
-
-  if (payload_width == 0) { return false; }
-  packet->size = payload_width;
-  nrf_.Command(0x61, {}, {&packet->data[0],
-          static_cast<ssize_t>(packet->size)});
-
+  if (!is_data_ready_) {
+    packet->size = 0;
+    return false;
+  }
+  *packet = rx_packet_;
+  is_data_ready_ = false;
   return true;
 }
 
 void Nrf24l01::Transmit(const Packet* packet) {
+  MJ_ASSERT(options_.ptx == 1);
   nrf_.Command(0xa0, {&packet->data[0], packet->size}, {});
+  // Strobe CE to start this transmit.
+  ce_.write(1);
+  timer_->wait_us(10);
+  ce_.write(0);
 }
 
 void Nrf24l01::QueueAck(const Packet* packet) {
@@ -197,8 +212,8 @@ void Nrf24l01::Configure() {
   nrf_.VerifyRegister(0x00, GetConfig());
 
   nrf_.VerifyRegister(
-      0x01, // EN_AA enable 0-5
-      options_.automatic_acknowledgment ? 0x3f : 0x00);
+      0x01, // EN_AA - enable auto-acknowledge per rx channel
+      options_.automatic_acknowledgment ? 0x01 : 0x00);
   nrf_.VerifyRegister(0x02, 0x01);  // EN_RXADDR enable 0
   nrf_.VerifyRegister(
       0x03,  // SETUP_AW
@@ -208,10 +223,10 @@ void Nrf24l01::Configure() {
         if (options_.address_length == 5) { return 3; }
         mbed_die();
       }());
-  MJ_ASSERT(options_.automatic_retransmission == false);
   nrf_.VerifyRegister(
       0x04,  // SETUP_RETR
-      options_.auto_retransmit_count);
+      std::min(15, options_.auto_retransmit_delay_us / 250) << 4 |
+      std::min(15, options_.auto_retransmit_count));
 
   SelectRfChannel(options_.initial_channel);
 
@@ -247,15 +262,22 @@ void Nrf24l01::Configure() {
         static_cast<size_t>(options_.address_length)};
   nrf_.VerifyRegister(0x0a,  id_view); // RX_ADDR_P0
   nrf_.VerifyRegister(0x10,  id_view); // TX_ADDR
-  nrf_.VerifyRegister(0x1c, options_.dynamic_payload_length ? 1 : 0);  // DYNPD
+  nrf_.VerifyRegister(
+      0x1c,
+      (options_.dynamic_payload_length  ||
+       options_.automatic_acknowledgment) ? 1 : 0);  // DYNPD
   nrf_.VerifyRegister(
       0x1d,  0 // FEATURE
-      | ((options_.dynamic_payload_length ? 1 : 0) << 2)
-      | ((options_.automatic_acknowledgment ? 1 : 0) << 1)
-                      );
+      | (((options_.dynamic_payload_length ||
+           options_.automatic_acknowledgment) ? 1 : 0) << 2) // EN_DPL
+      | ((options_.automatic_acknowledgment ? 1 : 0) << 1) // EN_ACK_PAY
+      | ((options_.automatic_acknowledgment ? 1 : 0 ) << 0) // EN_DYN_ACK
+  );
 
-  // In both modes, we just leave CE high all the time while operating.
-  ce_.write(1);
+  // In read mode, we leave CE high.
+  if (options_.ptx == 0) {
+    ce_.write(1);
+  }
 }
 
 uint8_t Nrf24l01::GetConfig() const {
@@ -270,8 +292,11 @@ uint8_t Nrf24l01::GetConfig() const {
       ;
 }
 
-uint8_t Nrf24l01::status() {
-  return nrf_.Command(0xff, {}, {});
+Nrf24l01::Status Nrf24l01::status() {
+  Status result;
+  result.status_reg = nrf_.Command(0xff, {}, {});
+  result.retransmit_exceeded = retransmit_exceeded_;
+  return result;
 }
 
 uint8_t Nrf24l01::ReadRegister(uint8_t reg) {

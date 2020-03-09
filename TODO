@@ -1,2 +1,10 @@
-v1 ERRATA
- * NRF connector needs to be female, not male
+ * Get automatic acknowledgment working
+ * Verify channel selection works
+ * Range test at different power leves and w/ the antenna version
+ * Implement the slot based spread spectrum protocol.
+   * Try to provide a USB interface that lets you drop down to the low
+     level access?
+
+
+DONE 2020-03-07
+ * Got basic tx/rx working w/o auto ack

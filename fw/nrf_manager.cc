@@ -14,6 +14,8 @@
 
 #include "fw/nrf_manager.h"
 
+#include <inttypes.h>
+
 #include <optional>
 
 #include "mjlib/base/tokenizer.h"
@@ -35,6 +37,7 @@ struct Config {
   int32_t crc_length = 2;
   bool automatic_retransmission = false;
   int32_t auto_retransmit_count = 0;
+  int32_t auto_retransmit_delay_us = 1000;
   bool automatic_acknowledgment = false;
   int32_t initial_channel = 2;
   int32_t data_rate = 1000000;
@@ -50,6 +53,7 @@ struct Config {
     a->Visit(MJ_NVP(crc_length));
     a->Visit(MJ_NVP(automatic_retransmission));
     a->Visit(MJ_NVP(auto_retransmit_count));
+    a->Visit(MJ_NVP(auto_retransmit_delay_us));
     a->Visit(MJ_NVP(automatic_acknowledgment));
     a->Visit(MJ_NVP(initial_channel));
     a->Visit(MJ_NVP(data_rate));
@@ -134,6 +138,7 @@ class NrfManager::Impl {
           options.crc_length = config_.crc_length;
           options.automatic_retransmission = config_.automatic_retransmission;
           options.auto_retransmit_count = config_.auto_retransmit_count;
+          options.auto_retransmit_delay_us = config_.auto_retransmit_delay_us;
           options.automatic_acknowledgment = config_.automatic_acknowledgment;
           options.initial_channel = config_.initial_channel;
           options.data_rate = config_.data_rate;
@@ -181,6 +186,8 @@ class NrfManager::Impl {
     auto cmd = tokenizer.next();
     if (cmd == "tx") {
       Command_Tx(tokenizer.remaining(), response);
+    } else if (cmd == "ack") {
+      Command_Ack(tokenizer.remaining(), response);
     } else if (cmd == "stat") {
       Command_Stat(response);
     } else if (cmd == "r") {
@@ -201,31 +208,28 @@ class NrfManager::Impl {
 
   void Command_Tx(std::string_view hexdata,
                   const micro::CommandManager::Response& response) {
-    if ((hexdata.size() % 2) != 0) {
-      WriteMessage("ERR data invalid length\r\n", response);
-      return;
-    }
-
     Nrf24l01::Packet packet;
-    size_t bytes = 0;
-    for (size_t i = 0; i < hexdata.size(); i += 2) {
-      int value = ParseHexByte(&hexdata[i]);
-      if (value < 0) {
-        WriteMessage("ERR invalid data\r\n", response);
-        return;
-      }
-      packet.data[bytes++] = value;
-    }
-    packet.size = bytes;
+    if (!ParsePacket(hexdata, &packet, response)) { return; }
 
     nrf_->Transmit(&packet);
 
     WriteOK(response);
   }
 
+  void Command_Ack(std::string_view hexdata,
+                   const micro::CommandManager::Response& response) {
+    Nrf24l01::Packet packet;
+    if (!ParsePacket(hexdata, &packet, response)) { return; }
+
+    nrf_->QueueAck(&packet);
+
+    WriteOK(response);
+  }
+
   void Command_Stat(const micro::CommandManager::Response& response) {
-    uint8_t value = nrf_->status();
-    snprintf(emit_line_, sizeof(emit_line_), "OK %02X\r\n", value);
+    const auto status = nrf_->status();
+    snprintf(emit_line_, sizeof(emit_line_), "OK s=%02X r=%" PRIu32 "\r\n",
+             status.status_reg, status.retransmit_exceeded);
     WriteMessage(emit_line_, response);
   }
 
@@ -235,6 +239,27 @@ class NrfManager::Impl {
     const uint8_t result = nrf_->ReadRegister(reg);
     snprintf(emit_line_, sizeof(emit_line_), "OK %02X\r\n", result);
     WriteMessage(emit_line_, response);
+  }
+
+  bool ParsePacket(std::string_view hexdata,
+                   Nrf24l01::Packet* packet,
+                   const micro::CommandManager::Response& response) {
+    if ((hexdata.size() % 2) != 0) {
+      WriteMessage("ERR data invalid length\r\n", response);
+      return false;
+    }
+
+    size_t bytes = 0;
+    for (size_t i = 0; i < hexdata.size(); i += 2) {
+      int value = ParseHexByte(&hexdata[i]);
+      if (value < 0) {
+        WriteMessage("ERR invalid data\r\n", response);
+        return false;
+      }
+      packet->data[bytes++] = value;
+    }
+    packet->size = bytes;
+    return true;
   }
 
   const Options options_;

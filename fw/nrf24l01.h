@@ -48,6 +48,7 @@ class Nrf24l01 {
     int crc_length = 2;
     bool automatic_retransmission = false;
     int auto_retransmit_count = 0;
+    int auto_retransmit_delay_us = 1000;
     bool automatic_acknowledgment = false;
     int initial_channel = 2;
 
@@ -76,7 +77,11 @@ class Nrf24l01 {
   /// Return true if there is data available to read.
   bool is_data_ready();
 
-  uint8_t status();
+  struct Status {
+    uint8_t status_reg = 0;
+    uint32_t retransmit_exceeded = 0;
+  };
+  Status status();
 
   struct Packet {
     size_t size = 0;
@@ -139,6 +144,13 @@ class Nrf24l01 {
   };
   ConfigureState configure_state_ = kPowerOnReset;
   uint32_t start_entering_standby_ = 0;
+
+  bool is_data_ready_ = false;
+  bool rx_overflow_ = false;
+
+  uint32_t retransmit_exceeded_ = 0;
+  Packet rx_packet_;
+
 };
 
 }
