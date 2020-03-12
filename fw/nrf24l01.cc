@@ -102,10 +102,7 @@ void Nrf24l01::Poll() {
     // We have some interrupt to deal with.  Read the status.
     const uint8_t status = nrf_.Command(0xff, {}, {});
 
-    if ((status & (1 << 6)) ||
-        ((status & (1 << 5)) &&
-         (options_.automatic_acknowledgment &&
-          options_.ptx))) {
+    if (status & (1 << 6)) {
       uint8_t payload_width = 0;
       nrf_.Command(0x60,  // R_RX_PL_WID
                    {},
@@ -213,8 +210,11 @@ void Nrf24l01::Configure() {
 
   nrf_.VerifyRegister(
       0x01, // EN_AA - enable auto-acknowledge per rx channel
-      options_.automatic_acknowledgment ? 0x01 : 0x00);
-  nrf_.VerifyRegister(0x02, 0x01);  // EN_RXADDR enable 0
+      (options_.automatic_acknowledgment ? 0x01 : 0x00));
+  nrf_.VerifyRegister(
+      0x02, // EN_RXADDR
+      (options_.ptx == 0 || options_.automatic_acknowledgment) ?
+      0x01 : 0);  // EN_RXADDR enable 0
   nrf_.VerifyRegister(
       0x03,  // SETUP_AW
       [&]() {
@@ -251,14 +251,16 @@ void Nrf24l01::Configure() {
           return 4;
         } else if (options_.output_power == 0) {
           return 6;
-        } else if (options_.output_power == 7) {
-          return 1;
         }
         mbed_die();
       }());
 
+  uint8_t id_buf[5] = {};
+  for (int i = 0; i < options_.address_length; i++) {
+    id_buf[i] = (options_.id >> (i * 8)) & 0xff;
+  }
   std::string_view id_view{
-    reinterpret_cast<const char*>(&options_.id),
+    reinterpret_cast<const char*>(&id_buf[0]),
         static_cast<size_t>(options_.address_length)};
   nrf_.VerifyRegister(0x0a,  id_view); // RX_ADDR_P0
   nrf_.VerifyRegister(0x10,  id_view); // TX_ADDR
@@ -301,6 +303,14 @@ Nrf24l01::Status Nrf24l01::status() {
 
 uint8_t Nrf24l01::ReadRegister(uint8_t reg) {
   return nrf_.ReadRegister(reg);
+}
+
+void Nrf24l01::ReadRegister(uint8_t reg, mjlib::base::string_span buffer) {
+  nrf_.ReadRegister(reg, buffer);
+}
+
+void Nrf24l01::WriteRegister(uint8_t reg, std::string_view buffer) {
+  nrf_.WriteRegister(reg, buffer);
 }
 
 }  // namespace fw

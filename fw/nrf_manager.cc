@@ -31,11 +31,10 @@ namespace {
 struct Config {
   bool ptx = true;
   int32_t address_length = 5;
-  uint64_t id = 0;
+  uint64_t id = 0x200f;
   bool dynamic_payload_length = true;
   bool enable_crc = true;
   int32_t crc_length = 2;
-  bool automatic_retransmission = false;
   int32_t auto_retransmit_count = 0;
   int32_t auto_retransmit_delay_us = 1000;
   bool automatic_acknowledgment = false;
@@ -51,7 +50,6 @@ struct Config {
     a->Visit(MJ_NVP(dynamic_payload_length));
     a->Visit(MJ_NVP(enable_crc));
     a->Visit(MJ_NVP(crc_length));
-    a->Visit(MJ_NVP(automatic_retransmission));
     a->Visit(MJ_NVP(auto_retransmit_count));
     a->Visit(MJ_NVP(auto_retransmit_delay_us));
     a->Visit(MJ_NVP(automatic_acknowledgment));
@@ -136,7 +134,6 @@ class NrfManager::Impl {
           options.dynamic_payload_length = config_.dynamic_payload_length;
           options.enable_crc = config_.enable_crc;
           options.crc_length = config_.crc_length;
-          options.automatic_retransmission = config_.automatic_retransmission;
           options.auto_retransmit_count = config_.auto_retransmit_count;
           options.auto_retransmit_delay_us = config_.auto_retransmit_delay_us;
           options.automatic_acknowledgment = config_.automatic_acknowledgment;
@@ -192,6 +189,8 @@ class NrfManager::Impl {
       Command_Stat(response);
     } else if (cmd == "r") {
       Command_Read(tokenizer.remaining(), response);
+    } else if (cmd == "w") {
+      Command_Write(tokenizer.remaining(), response);
     } else {
       WriteMessage("ERR unknown command\r\n", response);
     }
@@ -233,12 +232,61 @@ class NrfManager::Impl {
     WriteMessage(emit_line_, response);
   }
 
-  void Command_Read(std::string_view reg_str,
+  void Command_Read(std::string_view remaining,
                     const micro::CommandManager::Response& response) {
+    mjlib::base::Tokenizer tokenizer(remaining, " ");
+
+    const auto reg_str = tokenizer.next();
+    const auto maybe_length_str = tokenizer.next();
+
     const int reg = std::strtol(reg_str.data(), nullptr, 0);
-    const uint8_t result = nrf_->ReadRegister(reg);
-    snprintf(emit_line_, sizeof(emit_line_), "OK %02X\r\n", result);
+
+    char buf[5] = {};
+    const ssize_t size =
+        ((maybe_length_str.size() == 0) ? 1 :
+         std::strtol(maybe_length_str.data(), nullptr, 0));
+    nrf_->ReadRegister(reg, mjlib::base::string_span(buf, size));
+
+    ssize_t pos = 0;
+    auto fmt = [&](auto ...args) {
+      pos += snprintf(&emit_line_[pos], sizeof(emit_line_) - pos, args...);
+    };
+
+    fmt("OK ");
+
+    for (ssize_t i = 0; i < size; i++) {
+      fmt("%02X", buf[i]);
+    }
+
+    fmt("\r\n");
+
     WriteMessage(emit_line_, response);
+  }
+
+  void Command_Write(std::string_view remaining,
+                     const micro::CommandManager::Response& response) {
+    mjlib::base::Tokenizer tokenizer(remaining, " ");
+    const auto reg_str = tokenizer.next();
+    const auto hexdata = tokenizer.next();
+
+    const int reg = std::strtol(reg_str.data(), nullptr, 0);
+    char buf[5] = {};
+
+    size_t bytes = 0;
+    for (size_t i = 0; i < hexdata.size(); i += 2) {
+      if (i >= 10) { break; }
+      int value = ParseHexByte(&hexdata[i]);
+      if (value < 0) {
+        WriteMessage("ERR invalid data\r\n", response);
+        return;
+      }
+      buf[bytes] = value;
+      bytes++;
+    }
+
+    nrf_->WriteRegister(reg, {buf, bytes});
+
+    WriteOK(response);
   }
 
   bool ParsePacket(std::string_view hexdata,

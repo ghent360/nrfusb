@@ -46,7 +46,6 @@ class Nrf24l01 {
     bool dynamic_payload_length = true;
     bool enable_crc = true;
     int crc_length = 2;
-    bool automatic_retransmission = false;
     int auto_retransmit_count = 0;
     int auto_retransmit_delay_us = 1000;
     bool automatic_acknowledgment = false;
@@ -55,7 +54,7 @@ class Nrf24l01 {
     // Can be one of 250000, 1000000, or 2000000;
     int data_rate = 1000000;
 
-    // Can be one of -18, -12, -6, 0, or 7.
+    // Can be one of -18, -12, -6, 0.
     int output_power = 0;
 
     Options() {}
@@ -100,6 +99,9 @@ class Nrf24l01 {
   void QueueAck(const Packet*);
 
   uint8_t ReadRegister(uint8_t);
+  void ReadRegister(uint8_t, mjlib::base::string_span);
+
+  void WriteRegister(uint8_t, std::string_view);
 
  private:
   void WriteConfig();
