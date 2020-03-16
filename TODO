@@ -1,5 +1,3 @@
- * Verify channel selection works
- * Range test at different power levels and w/ the antenna version
  * Implement the slot based spread spectrum protocol.
    * Try to provide a USB interface that lets you drop down to the low
      level access?
@@ -7,9 +5,14 @@
 
 * make custom nrf daughterboard w/ and w/o amplifier
 
+DONE 2020-03-16
+ * range testing with shielded modules gives good enough results
 
 DONE 2020-03-12
  * got auto-ack working, put genuine nordic parts on 4 of the boards
+ * verified channel selection
+ * did range testing... basically need antenna w/ PA, even 250kbps
+   range is terrible with the trace antenna
 
 DONE 2020-03-07
  * Got basic tx/rx working w/o auto ack
