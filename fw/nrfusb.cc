@@ -62,12 +62,15 @@ int main(void) {
       write_stream, &timer,
       [&]() {
         fw::NrfManager::Options options;
-        options.mosi = PA_7;
-        options.miso = PA_6;
-        options.sck = PA_5;
-        options.cs = PA_4;
-        options.irq = PB_1;
-        options.ce = PB_0;
+
+        auto& pins = options.pins;
+        pins.mosi = PA_7;
+        pins.miso = PA_6;
+        pins.sck = PA_5;
+        pins.cs = PA_4;
+        pins.irq = PB_1;
+        pins.ce = PB_0;
+
         return options;
       }());
 

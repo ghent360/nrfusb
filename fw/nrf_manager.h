@@ -21,17 +21,13 @@
 #include "mjlib/micro/pool_ptr.h"
 
 #include "fw/millisecond_timer.h"
+#include "fw/nrf24l01.h"
 
 namespace fw {
 class NrfManager {
  public:
   struct Options {
-    PinName mosi = NC;
-    PinName miso = NC;
-    PinName sck = NC;
-    PinName cs = NC;
-    PinName irq = NC;
-    PinName ce = NC;
+    Nrf24l01::Pins pins;
   };
 
   NrfManager(mjlib::micro::Pool&,

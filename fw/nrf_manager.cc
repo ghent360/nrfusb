@@ -121,12 +121,7 @@ class NrfManager::Impl {
         timer_,
         [&]() {
           Nrf24l01::Options options;
-          options.mosi = options_.mosi;
-          options.miso = options_.miso;
-          options.sck = options_.sck;
-          options.cs = options_.cs;
-          options.irq = options_.irq;
-          options.ce = options_.ce;
+          options.pins = options_.pins;
 
           options.ptx = config_.ptx;
           options.address_length = config_.address_length;

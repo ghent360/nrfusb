@@ -27,7 +27,7 @@ namespace fw {
 
 class Nrf24l01 {
  public:
-  struct Options {
+  struct Pins {
     ////////////////////
     // Pin configuration
     PinName mosi = NC;
@@ -36,6 +36,10 @@ class Nrf24l01 {
     PinName cs = NC;
     PinName irq = NC;
     PinName ce = NC;
+  };
+
+  struct Options {
+    Pins pins;
 
     ///////////////////////
     // Device configuration

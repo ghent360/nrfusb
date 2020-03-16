@@ -90,10 +90,10 @@ void Nrf24l01::SpiMaster::VerifyRegister(uint8_t address, uint8_t value) {
 Nrf24l01::Nrf24l01(MillisecondTimer* timer, const Options& options)
     : timer_(timer),
       options_(options),
-      spi_(options.mosi, options.miso, options.sck),
-      nrf_(&spi_, options.cs, timer),
-      irq_(options.irq),
-      ce_(options.ce, 0) {}
+      spi_(options.pins.mosi, options.pins.miso, options.pins.sck),
+      nrf_(&spi_, options.pins.cs, timer),
+      irq_(options.pins.irq),
+      ce_(options.pins.ce, 0) {}
 
 Nrf24l01::~Nrf24l01() {}
 
