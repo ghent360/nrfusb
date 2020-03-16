@@ -185,6 +185,8 @@ class NrfManager::Impl {
       Command_Tx(tokenizer.remaining(), response);
     } else if (cmd == "ack") {
       Command_Ack(tokenizer.remaining(), response);
+    } else if (cmd == "chan") {
+      Command_Channel(tokenizer.remaining(), response);
     } else if (cmd == "stat") {
       Command_Stat(response);
     } else if (cmd == "r") {
@@ -222,6 +224,16 @@ class NrfManager::Impl {
 
     nrf_->QueueAck(&packet);
 
+    WriteOK(response);
+  }
+
+  void Command_Channel(std::string_view remaining,
+                       const micro::CommandManager::Response& response) {
+    const int channel =
+        std::max<int>(
+            0, std::min<int>(
+                125, std::strtol(remaining.data(), nullptr, 0)));
+    nrf_->SelectRfChannel(channel);
     WriteOK(response);
   }
 
