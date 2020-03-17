@@ -168,6 +168,7 @@ bool Nrf24l01::ready() const {
 }
 
 void Nrf24l01::SelectRfChannel(uint8_t channel) {
+  MJ_ASSERT(channel < 125);
   nrf_.VerifyRegister(0x05, channel & 0x7f);  // RF_CH
 }
 

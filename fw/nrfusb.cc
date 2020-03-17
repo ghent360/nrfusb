@@ -22,12 +22,20 @@
 #include "fw/git_info.h"
 #include "fw/millisecond_timer.h"
 #include "fw/nrf_manager.h"
+#include "fw/slot_rf_manager.h"
 #include "fw/stm32g4_flash.h"
 #include "fw/stm32g4_async_usb_cdc.h"
 
 namespace {
 namespace base = mjlib::base;
 namespace micro = mjlib::micro;
+
+// TODO: Make this dynamically selectable.
+#ifdef NRFUSB_RAW
+using Manager = fw::NrfManager;
+#else
+using Manager = fw::SlotRfManager;
+#endif
 }
 
 int main(void) {
@@ -57,11 +65,11 @@ int main(void) {
 
   fw::FirmwareInfo firmware_info(pool, telemetry_manager);
 
-  fw::NrfManager nrf_manager(
+  Manager manager(
       pool, persistent_config, command_manager,
       write_stream, &timer,
       [&]() {
-        fw::NrfManager::Options options;
+        Manager::Options options;
 
         auto& pins = options.pins;
         pins.mosi = PA_7;
@@ -80,7 +88,7 @@ int main(void) {
   persistent_config.Load();
 
   command_manager.AsyncStart();
-  nrf_manager.Start();
+  manager.Start();
 
   while (true) {
     const uint32_t start = timer.read_ms();
@@ -90,10 +98,10 @@ int main(void) {
       const uint32_t now = timer.read_ms();
 
       usb.Poll();
-      nrf_manager.Poll();
+      manager.Poll();
 
       if (now != old) {
-        nrf_manager.PollMillisecond();
+        manager.PollMillisecond();
 
         old = now;
       }

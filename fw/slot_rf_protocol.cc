@@ -44,16 +44,25 @@ class SlotRfProtocol::Impl {
     MJ_ASSERT(!!nrf_);
     nrf_->Poll();
 
-    if (nrf_->is_data_ready()) {
-      nrf_->Read(&rx_packet_);
+    if (!nrf_->is_data_ready()) {
+      return;
+    }
 
-      // If we are a receiver, we need to mark ourselves as now locked
-      // and update slot_timer_ to be ready for the next reception
-      // cycle.
+
+    nrf_->Read(&rx_packet_);
+
+    // If we are a receiver, we need to mark ourselves as now locked
+    // and update slot_timer_ to be ready for the next reception
+    // cycle.
+    if (!options_.ptx) {
       receive_mode_ = kLocked;
       slot_timer_ = kSlotPeriodMs;
+      rx_miss_count_ = 0;
     }
-    // TODO: Look for data.
+
+    // Update our receive ages:
+    for (auto& slot : rx_slots_) { slot.age++; }
+    ParsePacket();
   }
 
   void PollMillisecond() {
@@ -66,7 +75,7 @@ class SlotRfProtocol::Impl {
       if (slot_timer_ == 0) {
         TransmitCycle();
         slot_timer_ = kSlotPeriodMs;
-      } else if (slot_timer_ == 2) {
+      } else if (slot_timer_ == 5) {
         // Switch to the next channel.
         channel_ = (channel_ + 1) % kNumChannels;
         nrf_->SelectRfChannel(channels_[channel_]);
@@ -74,6 +83,21 @@ class SlotRfProtocol::Impl {
     } else {
       if (slot_timer_ == 0) {
         slot_timer_ = kSlotPeriodMs;
+        rx_miss_count_++;
+
+        if (receive_mode_ == kSynchronizing) {
+          if (rx_miss_count_ > 20) {
+            // Move on to the next channel.
+            channel_ = (channel_ + 1) % kNumChannels;
+            nrf_->SelectRfChannel(channels_[channel_]);
+            rx_miss_count_ = 0;
+          }
+        } else {
+          if (rx_miss_count_ > 5) {
+            // Whoops, count us as now needing to synchronize.
+            receive_mode_ = kSynchronizing;
+          }
+        }
       }
       // When receiving, we switch to the next channel halfway through
       // our time window.
@@ -85,10 +109,52 @@ class SlotRfProtocol::Impl {
     }
   }
 
+  uint32_t slot_bitfield() const {
+    return slot_bitfield_;
+  }
+
+  void tx_slot(int slot_idx, const Slot& slot) {
+    tx_slots_[slot_idx] = slot;
+  }
+
+  const Slot& rx_slot(int slot_idx) const {
+    return rx_slots_[slot_idx];
+  }
+
  private:
+  void ParsePacket() {
+    char* pos = rx_packet_.data;
+    auto remaining = rx_packet_.size;
+
+    while (remaining) {
+      uint8_t header = static_cast<uint8_t>(*pos);
+      uint8_t slot_index = header >> 4;
+      uint8_t slot_size = header & 0xff;
+      remaining--;
+      pos++;
+      if (slot_size > remaining) {
+        // TODO: Record this as malformed.
+        return;
+      }
+
+      auto& slot = rx_slots_[slot_index];
+      slot.age = 0;
+      slot.size = slot_size;
+      std::memcpy(slot.data, pos, slot_size);
+
+      uint32_t cur_bitfield = (slot_bitfield_ >> (slot_index * 2)) & 0x03;
+      cur_bitfield = (cur_bitfield + 1) % 4;
+      slot_bitfield_ = (slot_bitfield_ & ~(0x03 << (slot_index * 2))) |
+          (cur_bitfield << (slot_index * 2));
+
+      pos += slot_size;
+      remaining -= slot_size;
+    }
+  }
+
   void TransmitCycle() {
     // Increment the ages for all slots.
-    for (auto& slot : slots_) {
+    for (auto& slot : tx_slots_) {
       slot.age++;
     }
 
@@ -99,13 +165,13 @@ class SlotRfProtocol::Impl {
     auto enabled_slots = FindEnabledSlots(priority_count_);
     std::sort(enabled_slots.begin(), enabled_slots.end(),
               [&](auto lhs, auto rhs) {
-                return slots_[lhs].age > slots_[rhs].age;
+                return tx_slots_[lhs].age > tx_slots_[rhs].age;
               });
 
     // Now loop through by age filling up whatever we can.
     for (auto slot_idx : enabled_slots) {
       const int remaining_size = 32 - tx_packet_.size;
-      if ((slots_[slot_idx].size + 1) < remaining_size) {
+      if ((tx_slots_[slot_idx].size + 1) < remaining_size) {
         EmitSlot(slot_idx);
       }
     }
@@ -122,7 +188,7 @@ class SlotRfProtocol::Impl {
     micro::StaticVector<uint8_t, kNumSlots> result;
     uint32_t mask = 1 << current_priority;
     for (int i = 0; i < kNumSlots; i++) {
-      if (slots_[i].priority & mask) { result.push_back(i); }
+      if (tx_slots_[i].priority & mask) { result.push_back(i); }
     }
     return result;
   }
@@ -131,14 +197,15 @@ class SlotRfProtocol::Impl {
     auto& size = tx_packet_.size;
 
     const int remaining = 32 - size;
-    MJ_ASSERT((slots_[slot_index].size + 1) < remaining);
+    auto& slot = tx_slots_[slot_index];
 
-    tx_packet_.data[size] = (slot_index << 4) | slots_[slot_index].size;
+    MJ_ASSERT((slot.size + 1) < remaining);
+
+    tx_packet_.data[size] = (slot_index << 4) | slot.size;
     size++;
-    std::memcpy(&tx_packet_.data[size], slots_[slot_index].data,
-                slots_[slot_index].size);
-    size += slots_[slot_index].size;
-    slots_[slot_index].age = 0;
+    std::memcpy(&tx_packet_.data[size], slot.data, slot.size);
+    size += slot.size;
+    slot.age = 0;
   }
 
   void Restart() {
@@ -173,7 +240,7 @@ class SlotRfProtocol::Impl {
 
     const auto byte_lsb = 0xc0 | (slot_id & 0x0f);
 
-    const auto make_byte = [&](int shift) {
+    const auto make_byte = [&](int shift) -> uint64_t {
       const auto shifted = slot_id >> shift;
       return (shifted & 0xfe) | (((shifted >> 1) & 0x01) ^ 0x01);
     };
@@ -237,7 +304,9 @@ class SlotRfProtocol::Impl {
     }
 
     const int this_band = get_band(possible_channel);
-    if (band_channels[this_band] >= band_max[this_band]) { return false; }
+    if (band_count[this_band] >= band_max[this_band]) {
+      return false;
+    }
 
     return true;
   }
@@ -248,7 +317,6 @@ class SlotRfProtocol::Impl {
   std::optional<Nrf24l01> nrf_;
 
   bool write_outstanding_ = false;
-  char emit_line_[256] = {};
   micro::VoidCallback done_callback_;
 
   uint8_t channels_[kNumChannels] = {};
@@ -259,8 +327,11 @@ class SlotRfProtocol::Impl {
   /// transmitters.
   int slot_timer_ = kSlotPeriodMs;
   int priority_count_ = 0;
+  uint32_t rx_miss_count_ = 0;
 
-  Slot slots_[kNumSlots] = {};
+  uint32_t slot_bitfield_ = 0;
+  Slot tx_slots_[kNumSlots] = {};
+  Slot rx_slots_[kNumSlots] = {};
 
   Nrf24l01::Packet rx_packet_;
   Nrf24l01::Packet tx_packet_;
@@ -289,6 +360,18 @@ void SlotRfProtocol::PollMillisecond() {
 
 void SlotRfProtocol::Start() {
   impl_->Start();
+}
+
+uint32_t SlotRfProtocol::slot_bitfield() const {
+  return impl_->slot_bitfield();
+}
+
+void SlotRfProtocol::tx_slot(int slot_idx, const Slot& slot) {
+  impl_->tx_slot(slot_idx, slot);
+}
+
+const SlotRfProtocol::Slot& SlotRfProtocol::rx_slot(int slot_idx) const {
+  return impl_->rx_slot(slot_idx);
 }
 
 }

@@ -37,6 +37,8 @@ mbed_binary(
         "firmware_info.h",
         "firmware_info.cc",
         "millisecond_timer.h",
+        "slot_rf_manager.h",
+        "slot_rf_manager.cc",
         "slot_rf_protocol.h",
         "slot_rf_protocol.cc",
         "stm32g4_async_usb_cdc.h",

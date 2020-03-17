@@ -26,7 +26,7 @@ class SlotRfProtocol {
  public:
   struct Options {
     bool ptx = true;
-    uint64_t id = 0x3045;
+    uint32_t id = 0x3045;
     int32_t data_rate = 1000000;
     int32_t output_power = 0;
     int32_t auto_retransmit_count = 0;
@@ -49,8 +49,17 @@ class SlotRfProtocol {
     uint8_t data[16] = {};
   };
 
-  /// Only valid in writing mode.
-  void Set(int slot_idx, const Slot&);
+  /// Return a bitfield with 2 bits per slot.  The 2 bit number
+  /// increments upon each receipt of that slot.  This can be used to
+  /// efficiently poll to see if any slots have been received and
+  /// which ones have been received.
+  uint32_t slot_bitfield() const;
+
+  /// Queue the given slot to be transmitted.
+  void tx_slot(int slot_idx, const Slot&);
+
+  /// Return the current value of the given receive slot.
+  const Slot& rx_slot(int slot_idx) const;
 
  private:
   class Impl;
