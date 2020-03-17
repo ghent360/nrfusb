@@ -43,7 +43,7 @@ the following parameters:
 * Auto acknowledgement
 * 1Mbps data rate
 
-The transmitter sends a new packet every 20ms, waiting 2ms for an
+The transmitter sends a new packet every 20ms, waiting 1ms for an
 acknowledgement with data on the same channel.  Each transmitted
 packet advances to the next channel in the channel selected list,
 wrapping around.
@@ -86,16 +86,14 @@ The transmitter and receiver have 16 different "slots" to hold
 outgoing data.  Each can be configured for a different priority or
 transmission rate and each can hold up to 16 bytes of data.
 
-The transmission rate/priority is configured by providing a divisor
-indicating that the data should be transmitted every Nth frame.  A
-divisor of 1 means the data should be transmitted every frame, a
-divisor of 2 means it should be transmitted every other etc.  It is up
-to the application to ensure that a given selection of slot sizes and
-frame rates is achievable.  If an infeasible selection is configured,
-some undetermined data will not be sent.
+The transmission rate/priority is configured by providing a 32 bit
+bitmask denoting in which timeslots this slot should be sent.
+Configuring an infeasible set of slots will result in unspecified data
+being sent at a lower rate.
 
 A priority of 0 is the default, which signifies that the slot should
-not be transmitted.
+not be transmitted.  0xffffffff implies it should be sent every
+timeslot.  0x55555555 would be every other timeslot, etc.
 
 The data in a slot will continue to be transmitted at the specified
 frequency whether or not it has been updated by the client recently.

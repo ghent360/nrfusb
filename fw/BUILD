@@ -37,6 +37,8 @@ mbed_binary(
         "firmware_info.h",
         "firmware_info.cc",
         "millisecond_timer.h",
+        "slot_rf_protocol.h",
+        "slot_rf_protocol.cc",
         "stm32g4_async_usb_cdc.h",
         "stm32g4_async_usb_cdc.cc",
         "stm32g4_flash.h",
@@ -53,6 +55,8 @@ mbed_binary(
         "@mjlib//mjlib/micro:callback_table",
         "@mjlib//mjlib/micro:command_manager",
         "@mjlib//mjlib/micro:persistent_config",
+        "@mjlib//mjlib/micro:static_ptr",
+        "@mjlib//mjlib/micro:static_vector",
         "@mjlib//mjlib/micro:telemetry_manager",
     ],
     includes = [
