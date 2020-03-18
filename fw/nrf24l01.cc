@@ -93,7 +93,9 @@ Nrf24l01::Nrf24l01(MillisecondTimer* timer, const Options& options)
       spi_(options.pins.mosi, options.pins.miso, options.pins.sck),
       nrf_(&spi_, options.pins.cs, timer),
       irq_(options.pins.irq),
-      ce_(options.pins.ce, 0) {}
+      ce_(options.pins.ce, 0) {
+  spi_.frequency(10000000);
+}
 
 Nrf24l01::~Nrf24l01() {}
 
