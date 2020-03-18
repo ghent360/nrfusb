@@ -61,6 +61,11 @@ class SlotRfProtocol {
   /// Return the current value of the given receive slot.
   const Slot& rx_slot(int slot_idx) const;
 
+  /// Return the current rf channel.
+  uint8_t channel() const;
+
+  uint8_t nrf_channel();
+
  private:
   class Impl;
   mjlib::micro::StaticPtr<Impl, 2048> impl_;

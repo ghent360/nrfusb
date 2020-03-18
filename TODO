@@ -1,3 +1,7 @@
+ * millisecond count seems to be off by 2x
+ * shouldn't mbed_die ever
+ * UI needs a way to set priorities
+
  * Implement the slot based spread spectrum protocol.
    * Try to provide a USB interface that lets you drop down to the low
      level access?

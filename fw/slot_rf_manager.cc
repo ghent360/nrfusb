@@ -29,6 +29,7 @@ struct Config {
   int32_t data_rate = 1000000;
   int32_t output_power = 0;
   int32_t auto_retransmit_count = 0;
+  bool print_channels = false;
 
   template <typename Archive>
   void Serialize(Archive* a) {
@@ -37,6 +38,7 @@ struct Config {
     a->Visit(MJ_NVP(data_rate));
     a->Visit(MJ_NVP(output_power));
     a->Visit(MJ_NVP(auto_retransmit_count));
+    a->Visit(MJ_NVP(print_channels));
   }
 };
 
@@ -89,6 +91,12 @@ class SlotRfManager::Impl {
       EmitSlots(current ^ last_bitfield_);
     }
     last_bitfield_ = current;
+
+    const auto channel = slot_->channel();
+    if (config_.print_channels && channel != last_channel_) {
+      EmitChannel(channel);
+    }
+    last_channel_ = channel;
   }
 
   void PollMillisecond() {
@@ -96,6 +104,15 @@ class SlotRfManager::Impl {
   }
 
  private:
+  void EmitChannel(uint8_t channel) {
+    if (write_outstanding_) { return; }
+
+    snprintf(emit_line_, sizeof(emit_line_), "chan %d %d\r\n",
+             channel, slot_->nrf_channel());
+
+    EmitLine();
+  }
+
   void EmitSlots(uint32_t slots) {
     if (write_outstanding_) { return; }
 
@@ -106,7 +123,7 @@ class SlotRfManager::Impl {
 
     fmt("rcv");
     for (int slot_index = 0; slot_index < 16; slot_index++) {
-      const uint32_t mask = 0x3 << slot_index;
+      const uint32_t mask = 0x3 << (slot_index * 2);
       if ((slots & mask) == 0) { continue; }
 
       fmt(" %d:", slot_index);
@@ -221,6 +238,7 @@ class SlotRfManager::Impl {
 
   std::optional<SlotRfProtocol> slot_;
   uint32_t last_bitfield_ = 0;
+  uint8_t last_channel_ = 0;
 
   uint32_t priorities_[16] = {};
 

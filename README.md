@@ -82,7 +82,7 @@ be identified by the baseband receiver.
 
 ## Scheduling ##
 
-The transmitter and receiver have 16 different "slots" to hold
+The transmitter and receiver have 15 different "slots" to hold
 outgoing data.  Each can be configured for a different priority or
 transmission rate and each can hold up to 16 bytes of data.
 

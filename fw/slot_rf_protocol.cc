@@ -23,7 +23,7 @@ namespace fw {
 
 namespace {
 constexpr int kSlotPeriodMs = 20;
-constexpr int kNumSlots = 16;
+constexpr int kNumSlots = 15;
 constexpr int kNumChannels = 23;
 
 }  // namespace
@@ -75,10 +75,9 @@ class SlotRfProtocol::Impl {
       if (slot_timer_ == 0) {
         TransmitCycle();
         slot_timer_ = kSlotPeriodMs;
-      } else if (slot_timer_ == 5) {
+      } else if (slot_timer_ == (kSlotPeriodMs / 4)) {
         // Switch to the next channel.
-        channel_ = (channel_ + 1) % kNumChannels;
-        nrf_->SelectRfChannel(channels_[channel_]);
+        SwitchChannel();
       }
     } else {
       if (slot_timer_ == 0) {
@@ -88,8 +87,7 @@ class SlotRfProtocol::Impl {
         if (receive_mode_ == kSynchronizing) {
           if (rx_miss_count_ > 20) {
             // Move on to the next channel.
-            channel_ = (channel_ + 1) % kNumChannels;
-            nrf_->SelectRfChannel(channels_[channel_]);
+            SwitchChannel();
             rx_miss_count_ = 0;
           }
         } else {
@@ -98,13 +96,11 @@ class SlotRfProtocol::Impl {
             receive_mode_ = kSynchronizing;
           }
         }
-      }
-      // When receiving, we switch to the next channel halfway through
-      // our time window.
-      if (slot_timer_ == (kSlotPeriodMs / 2) && receive_mode_ == kLocked) {
-        // Get ready for the next thing coming our way.
-        channel_ = (channel_ + 1) % kNumChannels;
-        nrf_->SelectRfChannel(channels_[channel_]);
+      } else if (slot_timer_ == (kSlotPeriodMs / 2) && receive_mode_ == kLocked) {
+        // When receiving, we switch to the next channel halfway through
+        // our time window.
+        SwitchChannel();
+        ReplyCycle();
       }
     }
   }
@@ -121,7 +117,20 @@ class SlotRfProtocol::Impl {
     return rx_slots_[slot_idx];
   }
 
+  uint8_t channel() const {
+    return channels_[channel_];
+  }
+
+  uint8_t nrf_channel() {
+    return nrf_->ReadRegister(0x05);
+  }
+
  private:
+  void SwitchChannel() {
+    channel_ = (channel_ + 1) % kNumChannels;
+    nrf_->SelectRfChannel(channels_[channel_]);
+  }
+
   void ParsePacket() {
     char* pos = rx_packet_.data;
     auto remaining = rx_packet_.size;
@@ -135,6 +144,12 @@ class SlotRfProtocol::Impl {
       if (slot_size > remaining) {
         // TODO: Record this as malformed.
         return;
+      }
+
+      if (slot_index == 15) {
+        // This is reserved for special codes and can only appear at
+        // the end.
+        break;
       }
 
       auto& slot = rx_slots_[slot_index];
@@ -153,6 +168,20 @@ class SlotRfProtocol::Impl {
   }
 
   void TransmitCycle() {
+    PrepareTxPacket();
+
+    // Now we send out our frame, whether or not it has anything in it
+    // (that gives the receiver a chance to reply).
+    nrf_->Transmit(&tx_packet_);
+  }
+
+  void ReplyCycle() {
+    PrepareTxPacket();
+
+    nrf_->QueueAck(&tx_packet_);
+  }
+
+  void PrepareTxPacket() {
     // Increment the ages for all slots.
     for (auto& slot : tx_slots_) {
       slot.age++;
@@ -168,6 +197,7 @@ class SlotRfProtocol::Impl {
                 return tx_slots_[lhs].age > tx_slots_[rhs].age;
               });
 
+    tx_packet_.size = 0;
     // Now loop through by age filling up whatever we can.
     for (auto slot_idx : enabled_slots) {
       const int remaining_size = 32 - tx_packet_.size;
@@ -176,11 +206,15 @@ class SlotRfProtocol::Impl {
       }
     }
 
-    priority_count_ = (priority_count_ + 1) % 16;
+    // The NRF won't send anything if there are no bytes at all.
+    // Thus, use a placeholder if that is the case.  We need to send
+    // something in order to give the receiver a chance to ack.
+    if (tx_packet_.size == 0) {
+      tx_packet_.data[0] = 0xff;
+      tx_packet_.size = 1;
+    }
 
-    // Now we send out our frame, whether or not it has anything in it
-    // (that gives the receiver a chance to reply).
-    nrf_->Transmit(&tx_packet_);
+    priority_count_ = (priority_count_ + 1) % 32;
   }
 
   micro::StaticVector<uint8_t, kNumSlots>
@@ -372,6 +406,14 @@ void SlotRfProtocol::tx_slot(int slot_idx, const Slot& slot) {
 
 const SlotRfProtocol::Slot& SlotRfProtocol::rx_slot(int slot_idx) const {
   return impl_->rx_slot(slot_idx);
+}
+
+uint8_t SlotRfProtocol::channel() const {
+  return impl_->channel();
+}
+
+uint8_t SlotRfProtocol::nrf_channel() {
+  return impl_->nrf_channel();
 }
 
 }

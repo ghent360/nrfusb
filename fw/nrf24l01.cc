@@ -169,7 +169,16 @@ bool Nrf24l01::ready() const {
 
 void Nrf24l01::SelectRfChannel(uint8_t channel) {
   MJ_ASSERT(channel < 125);
+  if (options_.ptx == 0) {
+    // To reliably change the frequency, the receiver needs to be
+    // disabled.  It seems to kinda work only for a few limited
+    // channels without doing this.
+    ce_.write(0);
+  }
   nrf_.VerifyRegister(0x05, channel & 0x7f);  // RF_CH
+  if (options_.ptx == 0) {
+    ce_.write(1);
+  }
 }
 
 bool Nrf24l01::is_data_ready() {
@@ -182,7 +191,11 @@ bool Nrf24l01::Read(Packet* packet)  {
     return false;
   }
   *packet = rx_packet_;
-  is_data_ready_ = false;
+
+  // Check to see if there is more remaining.
+  const auto status_reg = nrf_.Command(0xff, {}, {});
+  is_data_ready_ = ((status_reg >> 1) & 0x07) != 0x07;
+
   return true;
 }
 
