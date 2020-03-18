@@ -64,7 +64,8 @@ class SlotRfProtocol {
   /// Return the current rf channel.
   uint8_t channel() const;
 
-  uint8_t nrf_channel();
+  /// Return any error flags.
+  uint32_t error() const;
 
  private:
   class Impl;

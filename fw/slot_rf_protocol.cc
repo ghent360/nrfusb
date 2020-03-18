@@ -121,8 +121,8 @@ class SlotRfProtocol::Impl {
     return channels_[channel_];
   }
 
-  uint8_t nrf_channel() {
-    return nrf_->ReadRegister(0x05);
+  uint32_t error() const {
+    return nrf_->error();
   }
 
  private:
@@ -412,8 +412,8 @@ uint8_t SlotRfProtocol::channel() const {
   return impl_->channel();
 }
 
-uint8_t SlotRfProtocol::nrf_channel() {
-  return impl_->nrf_channel();
+uint32_t SlotRfProtocol::error() const {
+  return impl_->error();
 }
 
 }

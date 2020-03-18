@@ -107,7 +107,12 @@ class Nrf24l01 {
 
   void WriteRegister(uint8_t, std::string_view);
 
+  uint32_t error() const { return error_; }
+
  private:
+  void VerifyRegister(uint8_t address, std::string_view);
+  void VerifyRegister(uint8_t address, uint8_t value);
+
   void WriteConfig();
   void Configure();
   uint8_t GetConfig() const;
@@ -128,8 +133,8 @@ class Nrf24l01 {
 
     uint8_t ReadRegister(uint8_t address, mjlib::base::string_span);
     uint8_t ReadRegister(uint8_t address);
-    void VerifyRegister(uint8_t address, std::string_view);
-    void VerifyRegister(uint8_t address, uint8_t value);
+    bool VerifyRegister(uint8_t address, std::string_view);
+    bool VerifyRegister(uint8_t address, uint8_t value);
 
    private:
     SPI* const spi_;
@@ -156,6 +161,8 @@ class Nrf24l01 {
 
   uint32_t retransmit_exceeded_ = 0;
   Packet rx_packet_;
+
+  uint32_t error_ = 0;
 
 };
 

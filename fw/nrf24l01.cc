@@ -75,16 +75,23 @@ uint8_t Nrf24l01::SpiMaster::ReadRegister(uint8_t address) {
   return result;
 }
 
-void Nrf24l01::SpiMaster::VerifyRegister(uint8_t address, std::string_view data) {
-  WriteRegister(address, data);
-  ReadRegister(address, {buf_, static_cast<ssize_t>(data.size())});
-  if (data != std::string_view{buf_, data.size()}) {
-    mbed_die();
+bool Nrf24l01::SpiMaster::VerifyRegister(uint8_t address, std::string_view data) {
+  constexpr int kMaxRetries = 2;
+
+  for (int i = 0; i < kMaxRetries; i++) {
+    WriteRegister(address, data);
+    ReadRegister(address, {buf_, static_cast<ssize_t>(data.size())});
+    if (data == std::string_view{buf_, data.size()}) {
+      return true;
+    }
   }
+
+  // Well, we failed.  Report an error.
+  return false;
 }
 
-void Nrf24l01::SpiMaster::VerifyRegister(uint8_t address, uint8_t value) {
-  VerifyRegister(address, {reinterpret_cast<const char*>(&value), 1});
+bool Nrf24l01::SpiMaster::VerifyRegister(uint8_t address, uint8_t value) {
+  return VerifyRegister(address, {reinterpret_cast<const char*>(&value), 1});
 }
 
 Nrf24l01::Nrf24l01(MillisecondTimer* timer, const Options& options)
@@ -177,7 +184,7 @@ void Nrf24l01::SelectRfChannel(uint8_t channel) {
     // channels without doing this.
     ce_.write(0);
   }
-  nrf_.VerifyRegister(0x05, channel & 0x7f);  // RF_CH
+  VerifyRegister(0x05, channel & 0x7f);  // RF_CH
   if (options_.ptx == 0) {
     ce_.write(1);
   }
@@ -215,6 +222,19 @@ void Nrf24l01::QueueAck(const Packet* packet) {
   nrf_.Command(0xa8, {&packet->data[0], packet->size}, {});
 }
 
+void Nrf24l01::VerifyRegister(uint8_t address, std::string_view data) {
+  if (!nrf_.VerifyRegister(address, data) && error_ == 0) {
+    // Just report the first error.
+    error_ = 0x100 | address;
+  }
+}
+
+void Nrf24l01::VerifyRegister(uint8_t address, uint8_t value) {
+  if (!nrf_.VerifyRegister(address, value) && error_ == 0) {
+    error_ = 0x100 | address;
+  }
+}
+
 void Nrf24l01::WriteConfig() {
   nrf_.WriteRegister(0x00, GetConfig());  // CONFIG
   // Now we need to wait another 1.5ms to enter standby mode for this
@@ -222,31 +242,32 @@ void Nrf24l01::WriteConfig() {
 }
 
 void Nrf24l01::Configure() {
-  nrf_.VerifyRegister(0x00, GetConfig());
+  VerifyRegister(0x00, GetConfig());
 
-  nrf_.VerifyRegister(
+  VerifyRegister(
       0x01, // EN_AA - enable auto-acknowledge per rx channel
       (options_.automatic_acknowledgment ? 0x01 : 0x00));
-  nrf_.VerifyRegister(
+  VerifyRegister(
       0x02, // EN_RXADDR
       (options_.ptx == 0 || options_.automatic_acknowledgment) ?
       0x01 : 0);  // EN_RXADDR enable 0
-  nrf_.VerifyRegister(
+  VerifyRegister(
       0x03,  // SETUP_AW
       [&]() {
         if (options_.address_length == 3) { return 1; }
         if (options_.address_length == 4) { return 2; }
         if (options_.address_length == 5) { return 3; }
-        mbed_die();
+        // default to length 5 address
+        return 3;
       }());
-  nrf_.VerifyRegister(
+  VerifyRegister(
       0x04,  // SETUP_RETR
       std::min(15, options_.auto_retransmit_delay_us / 250) << 4 |
       std::min(15, options_.auto_retransmit_count));
 
   SelectRfChannel(options_.initial_channel);
 
-  nrf_.VerifyRegister(
+  VerifyRegister(
       0x06,  // RF_SETUP
       [&]() {
         if (options_.data_rate == 250000) {
@@ -256,7 +277,8 @@ void Nrf24l01::Configure() {
         } else if (options_.data_rate == 2000000) {
           return (0 << 5) | (1 << 3);
         }
-        mbed_die();
+        // default to 250kbps
+        return (1 << 5);
       }() |
       [&]() {
         if (options_.output_power == -18) {
@@ -268,7 +290,8 @@ void Nrf24l01::Configure() {
         } else if (options_.output_power == 0) {
           return 6;
         }
-        mbed_die();
+        // default to 0dB output power
+        return 6;
       }());
 
   uint8_t id_buf[5] = {};
@@ -278,13 +301,13 @@ void Nrf24l01::Configure() {
   std::string_view id_view{
     reinterpret_cast<const char*>(&id_buf[0]),
         static_cast<size_t>(options_.address_length)};
-  nrf_.VerifyRegister(0x0a,  id_view); // RX_ADDR_P0
-  nrf_.VerifyRegister(0x10,  id_view); // TX_ADDR
-  nrf_.VerifyRegister(
+  VerifyRegister(0x0a,  id_view); // RX_ADDR_P0
+  VerifyRegister(0x10,  id_view); // TX_ADDR
+  VerifyRegister(
       0x1c,
       (options_.dynamic_payload_length  ||
        options_.automatic_acknowledgment) ? 1 : 0);  // DYNPD
-  nrf_.VerifyRegister(
+  VerifyRegister(
       0x1d,  0 // FEATURE
       | (((options_.dynamic_payload_length ||
            options_.automatic_acknowledgment) ? 1 : 0) << 2) // EN_DPL

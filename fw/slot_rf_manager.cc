@@ -107,8 +107,7 @@ class SlotRfManager::Impl {
   void EmitChannel(uint8_t channel) {
     if (write_outstanding_) { return; }
 
-    snprintf(emit_line_, sizeof(emit_line_), "chan %d %d\r\n",
-             channel, slot_->nrf_channel());
+    snprintf(emit_line_, sizeof(emit_line_), "chan %d\r\n", channel);
 
     EmitLine();
   }
@@ -132,6 +131,10 @@ class SlotRfManager::Impl {
       for (int i = 0; i < slot.size; i++) {
         fmt("%02X", slot.data[i]);
       }
+    }
+
+    if (slot_->error()) {
+      fmt(" E%X", slot_->error());
     }
     fmt("\r\n");
 
