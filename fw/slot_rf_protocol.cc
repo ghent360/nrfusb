@@ -23,7 +23,6 @@ namespace fw {
 
 namespace {
 constexpr int kSlotPeriodMs = 20;
-constexpr int kNumSlots = 15;
 constexpr int kNumChannels = 23;
 
 }  // namespace
@@ -48,7 +47,7 @@ class SlotRfProtocol::Impl {
       return;
     }
 
-
+    rx_packet_.size = 0;
     nrf_->Read(&rx_packet_);
 
     // If we are a receiver, we need to mark ourselves as now locked
@@ -111,6 +110,10 @@ class SlotRfProtocol::Impl {
 
   void tx_slot(int slot_idx, const Slot& slot) {
     tx_slots_[slot_idx] = slot;
+  }
+
+  const Slot& tx_slot(int slot_idx) const {
+    return tx_slots_[slot_idx];
   }
 
   const Slot& rx_slot(int slot_idx) const {
@@ -402,6 +405,10 @@ uint32_t SlotRfProtocol::slot_bitfield() const {
 
 void SlotRfProtocol::tx_slot(int slot_idx, const Slot& slot) {
   impl_->tx_slot(slot_idx, slot);
+}
+
+const SlotRfProtocol::Slot& SlotRfProtocol::tx_slot(int slot_idx) const {
+  return impl_->tx_slot(slot_idx);
 }
 
 const SlotRfProtocol::Slot& SlotRfProtocol::rx_slot(int slot_idx) const {

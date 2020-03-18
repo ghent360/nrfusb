@@ -24,6 +24,8 @@ namespace fw {
 
 class SlotRfProtocol {
  public:
+  static constexpr int kNumSlots = 15;
+
   struct Options {
     bool ptx = true;
     uint32_t id = 0x3045;
@@ -57,6 +59,9 @@ class SlotRfProtocol {
 
   /// Queue the given slot to be transmitted.
   void tx_slot(int slot_idx, const Slot&);
+
+  /// Return the current value of the given tx slot.
+  const Slot& tx_slot(int slot_idx) const;
 
   /// Return the current value of the given receive slot.
   const Slot& rx_slot(int slot_idx) const;

@@ -185,6 +185,8 @@ class SlotRfManager::Impl {
     auto cmd = tokenizer.next();
     if (cmd == "tx") {
       Command_Tx(tokenizer.remaining(), response);
+    } else if (cmd == "pri") {
+      Command_Pri(tokenizer.remaining(), response);
     } else {
       WriteMessage("ERR unknown command\r\n", response);
     }
@@ -204,7 +206,9 @@ class SlotRfManager::Impl {
 
     const int slot_index =
         std::max<int>(
-            0, std::min<int>(15, std::strtol(slot_str.data(), nullptr, 0)));
+            0, std::min<int>(
+                SlotRfProtocol::kNumSlots,
+                std::strtol(slot_str.data(), nullptr, 0)));
 
     SlotRfProtocol::Slot slot;
     slot.size = hexdata.size() / 2;
@@ -219,6 +223,35 @@ class SlotRfManager::Impl {
       slot.data[i / 2] = value;
     }
 
+    slot_->tx_slot(slot_index, slot);
+
+    WriteOK(response);
+  }
+
+  void Command_Pri(std::string_view remaining,
+                   const micro::CommandManager::Response& response) {
+    mjlib::base::Tokenizer tokenizer(remaining, " ");
+
+    auto slot_str = tokenizer.next();
+    auto pri_str = tokenizer.next();
+
+    if (slot_str.empty() || pri_str.empty()) {
+      WriteMessage("ERR invalid priority\r\n", response);
+      return;
+    }
+
+    const int slot_index =
+        std::max<int>(
+            0, std::min<int>(
+                SlotRfProtocol::kNumSlots,
+                std::strtol(slot_str.data(), nullptr, 0)));
+    const uint32_t priority =
+        std::strtoul(pri_str.data(), nullptr, 16);
+
+    priorities_[slot_index] = priority;
+
+    auto slot = slot_->tx_slot(slot_index);
+    slot.priority = priority;
     slot_->tx_slot(slot_index, slot);
 
     WriteOK(response);

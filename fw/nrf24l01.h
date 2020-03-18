@@ -110,6 +110,7 @@ class Nrf24l01 {
   uint32_t error() const { return error_; }
 
  private:
+  void ReadPacket();
   void VerifyRegister(uint8_t address, std::string_view);
   void VerifyRegister(uint8_t address, uint8_t value);
 

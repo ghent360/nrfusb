@@ -112,16 +112,7 @@ void Nrf24l01::Poll() {
     const uint8_t status = nrf_.Command(0xff, {}, {});
 
     if (status & (1 << 6)) {
-      uint8_t payload_width = 0;
-      nrf_.Command(0x60,  // R_RX_PL_WID
-                   {},
-                   {reinterpret_cast<char*>(&payload_width), 1});
-
-      rx_packet_.size = payload_width;
-      if (payload_width) {
-        nrf_.Command(0x61, {}, {&rx_packet_.data[0],
-                static_cast<ssize_t>(payload_width)});
-      }
+      ReadPacket();
 
       if (is_data_ready_) { rx_overflow_ = true; }
       is_data_ready_ = true;
@@ -200,10 +191,14 @@ bool Nrf24l01::Read(Packet* packet)  {
     return false;
   }
   *packet = rx_packet_;
+  rx_packet_.size = 0;
 
   // Check to see if there is more remaining.
   const auto status_reg = nrf_.Command(0xff, {}, {});
   is_data_ready_ = ((status_reg >> 1) & 0x07) != 0x07;
+  if (is_data_ready_) {
+    ReadPacket();
+  }
 
   return true;
 }
@@ -220,6 +215,19 @@ void Nrf24l01::Transmit(const Packet* packet) {
 void Nrf24l01::QueueAck(const Packet* packet) {
   // We always use PPP == 0
   nrf_.Command(0xa8, {&packet->data[0], packet->size}, {});
+}
+
+void Nrf24l01::ReadPacket() {
+  uint8_t payload_width = 0;
+  nrf_.Command(0x60,  // R_RX_PL_WID
+               {},
+               {reinterpret_cast<char*>(&payload_width), 1});
+
+  rx_packet_.size = payload_width;
+  if (payload_width) {
+    nrf_.Command(0x61, {}, {&rx_packet_.data[0],
+            static_cast<ssize_t>(payload_width)});
+  }
 }
 
 void Nrf24l01::VerifyRegister(uint8_t address, std::string_view data) {
