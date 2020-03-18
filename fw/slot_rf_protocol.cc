@@ -138,7 +138,7 @@ class SlotRfProtocol::Impl {
     while (remaining) {
       uint8_t header = static_cast<uint8_t>(*pos);
       uint8_t slot_index = header >> 4;
-      uint8_t slot_size = header & 0xff;
+      uint8_t slot_size = header & 0x0f;
       remaining--;
       pos++;
       if (slot_size > remaining) {
