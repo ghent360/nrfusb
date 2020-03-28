@@ -1,13 +1,12 @@
- * millisecond count seems to be off by 2x
- * shouldn't mbed_die ever
- * UI needs a way to set priorities
+ * support a tx communicating with two different receivers simultaneously
 
- * Implement the slot based spread spectrum protocol.
-   * Try to provide a USB interface that lets you drop down to the low
-     level access?
- * report errors instead of mbed_die for invalid options
+ * Try to provide a USB interface that lets you drop down to the low
+   level access?
+ * occasionally see USB become unresponsive after programming a
+   different device... maybe just brown out?
 
-* make custom nrf daughterboard w/ and w/o amplifier
+DONE 2020-03-17
+ * Got frequency hopping working
 
 DONE 2020-03-16
  * range testing with shielded modules gives good enough results
