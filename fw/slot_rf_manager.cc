@@ -86,7 +86,7 @@ class SlotRfManager::Impl {
   void Poll() {
     slot_->Poll();
 
-    const auto current = slot_->slot_bitfield();
+    const auto current = slot_->remote()->slot_bitfield();
     if (current != last_bitfield_) {
       EmitSlots(current ^ last_bitfield_);
     }
@@ -127,7 +127,7 @@ class SlotRfManager::Impl {
 
       fmt(" %d:", slot_index);
 
-      const auto& slot = slot_->rx_slot(slot_index);
+      const auto& slot = slot_->remote()->rx_slot(slot_index);
       for (int i = 0; i < slot.size; i++) {
         fmt("%02X", slot.data[i]);
       }
@@ -168,7 +168,7 @@ class SlotRfManager::Impl {
           options.pins = options_.pins;
 
           options.ptx = config_.ptx;
-          options.id = config_.id;
+          options.ids[0] = config_.id;
           options.data_rate = config_.data_rate;
           options.output_power = config_.output_power;
           options.auto_retransmit_count = config_.auto_retransmit_count;
@@ -223,7 +223,7 @@ class SlotRfManager::Impl {
       slot.data[i / 2] = value;
     }
 
-    slot_->tx_slot(slot_index, slot);
+    slot_->remote()->tx_slot(slot_index, slot);
 
     WriteOK(response);
   }
@@ -250,9 +250,9 @@ class SlotRfManager::Impl {
 
     priorities_[slot_index] = priority;
 
-    auto slot = slot_->tx_slot(slot_index);
+    auto slot = slot_->remote()->tx_slot(slot_index);
     slot.priority = priority;
-    slot_->tx_slot(slot_index, slot);
+    slot_->remote()->tx_slot(slot_index, slot);
 
     WriteOK(response);
   }

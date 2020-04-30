@@ -25,10 +25,18 @@ namespace fw {
 class SlotRfProtocol {
  public:
   static constexpr int kNumSlots = 15;
+  static constexpr int kNumRemotes = 4;
 
   struct Options {
     bool ptx = true;
-    uint32_t id = 0x3045;
+    /// 0 is reserved to mean that the particular ID is disabled.  In
+    /// receive mode, only id1 is used.
+    std::array<uint32_t, 4> ids = {
+      0x3045,
+      0,
+      0,
+      0,
+    };
     int32_t data_rate = 1000000;
     int32_t output_power = 0;
     int32_t auto_retransmit_count = 0;
@@ -51,20 +59,27 @@ class SlotRfProtocol {
     uint8_t data[16] = {};
   };
 
-  /// Return a bitfield with 2 bits per slot.  The 2 bit number
-  /// increments upon each receipt of that slot.  This can be used to
-  /// efficiently poll to see if any slots have been received and
-  /// which ones have been received.
-  uint32_t slot_bitfield() const;
+  class Remote {
+   public:
+    /// Return a bitfield with 2 bits per slot.  The 2 bit number
+    /// increments upon each receipt of that slot.  This can be used to
+    /// efficiently poll to see if any slots have been received and
+    /// which ones have been received.
+    virtual uint32_t slot_bitfield() const = 0;
 
-  /// Queue the given slot to be transmitted.
-  void tx_slot(int slot_idx, const Slot&);
+    /// Queue the given slot to be transmitted.
+    virtual void tx_slot(int slot_idx, const Slot&) = 0;
 
-  /// Return the current value of the given tx slot.
-  const Slot& tx_slot(int slot_idx) const;
+    /// Return the current value of the given tx slot.
+    virtual const Slot& tx_slot(int slot_idx) const = 0;
 
-  /// Return the current value of the given receive slot.
-  const Slot& rx_slot(int slot_idx) const;
+    /// Return the current value of the given receive slot.
+    virtual const Slot& rx_slot(int slot_idx) const = 0;
+  };
+
+  // Return one of the possible remotes.  When in receive mode, only
+  // index 0 is available.
+  Remote* remote(int index = 0);
 
   /// Return the current rf channel.
   uint8_t channel() const;
@@ -74,7 +89,7 @@ class SlotRfProtocol {
 
  private:
   class Impl;
-  mjlib::micro::StaticPtr<Impl, 2048> impl_;
+  mjlib::micro::StaticPtr<Impl, 4096> impl_;
 };
 
 }
