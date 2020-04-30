@@ -25,20 +25,25 @@ namespace fw {
 namespace {
 struct Config {
   bool ptx = true;
-  uint32_t id = 0x30251023;
+  std::array<uint32_t, SlotRfProtocol::kNumRemotes> ids = {
+    0x30251023,
+    0,
+  };
   int32_t data_rate = 1000000;
   int32_t output_power = 0;
   int32_t auto_retransmit_count = 0;
   bool print_channels = false;
+  int32_t transmit_timeout_ms = 1000;
 
   template <typename Archive>
   void Serialize(Archive* a) {
     a->Visit(MJ_NVP(ptx));
-    a->Visit(MJ_NVP(id));
+    a->Visit(MJ_NVP(ids));
     a->Visit(MJ_NVP(data_rate));
     a->Visit(MJ_NVP(output_power));
     a->Visit(MJ_NVP(auto_retransmit_count));
     a->Visit(MJ_NVP(print_channels));
+    a->Visit(MJ_NVP(transmit_timeout_ms));
   }
 };
 
@@ -69,7 +74,11 @@ class SlotRfManager::Impl {
         timer_(timer),
         stream_(stream) {
     // Default all slots to sending all the time.
-    for (auto& priority : priorities_) { priority = 0xffffffff; }
+    for (auto& priority_remote : priorities_) {
+      for (auto& priority : priority_remote.priorities) {
+        priority = 0xffffffff;
+      }
+    }
 
     persistent_config.Register(
         "slot", &config_, [this]() { this->UpdateConfig(); });
@@ -86,11 +95,17 @@ class SlotRfManager::Impl {
   void Poll() {
     slot_->Poll();
 
-    const auto current = slot_->remote()->slot_bitfield();
-    if (current != last_bitfield_) {
-      EmitSlots(current ^ last_bitfield_);
+    for (size_t remote_index = 0;
+         remote_index < SlotRfProtocol::kNumRemotes;
+         remote_index++) {
+      auto* remote = slot_->remote(remote_index);
+      auto& last_bitfield = last_bitfields_[remote_index];
+      const auto current = remote->slot_bitfield();
+      if (current != last_bitfield) {
+        EmitSlots(remote, remote_index, current ^ last_bitfield);
+      }
+      last_bitfield = current;
     }
-    last_bitfield_ = current;
 
     const auto channel = slot_->channel();
     if (config_.print_channels && channel != last_channel_) {
@@ -100,6 +115,10 @@ class SlotRfManager::Impl {
   }
 
   void PollMillisecond() {
+    timeout_remaining_ = std::max<int32_t>(0, timeout_remaining_ - 1);
+    if (timeout_remaining_ == 0 && config_.transmit_timeout_ms) {
+      DisableTransmit();
+    }
     slot_->PollMillisecond();
   }
 
@@ -112,7 +131,7 @@ class SlotRfManager::Impl {
     EmitLine();
   }
 
-  void EmitSlots(uint32_t slots) {
+  void EmitSlots(SlotRfProtocol::Remote* remote, int remote_index, uint32_t slots) {
     if (write_outstanding_) { return; }
 
     ssize_t pos = 0;
@@ -121,13 +140,19 @@ class SlotRfManager::Impl {
     };
 
     fmt("rcv");
-    for (int slot_index = 0; slot_index < 16; slot_index++) {
+    if (remote_index > 0) {
+      fmt("2 %d", remote_index);
+    }
+
+    for (int slot_index = 0;
+         slot_index < SlotRfProtocol::kNumSlots;
+         slot_index++) {
       const uint32_t mask = 0x3 << (slot_index * 2);
       if ((slots & mask) == 0) { continue; }
 
       fmt(" %d:", slot_index);
 
-      const auto& slot = slot_->remote()->rx_slot(slot_index);
+      const auto& slot = remote->rx_slot(slot_index);
       for (int i = 0; i < slot.size; i++) {
         fmt("%02X", slot.data[i]);
       }
@@ -168,7 +193,7 @@ class SlotRfManager::Impl {
           options.pins = options_.pins;
 
           options.ptx = config_.ptx;
-          options.ids[0] = config_.id;
+          options.ids = config_.ids;
           options.data_rate = config_.data_rate;
           options.output_power = config_.output_power;
           options.auto_retransmit_count = config_.auto_retransmit_count;
@@ -184,15 +209,34 @@ class SlotRfManager::Impl {
 
     auto cmd = tokenizer.next();
     if (cmd == "tx") {
-      Command_Tx(tokenizer.remaining(), response);
+      Command_Tx(0, tokenizer.remaining(), response);
+    } else if (cmd == "tx2") {
+      Command_Tx2(tokenizer.remaining(), response);
     } else if (cmd == "pri") {
-      Command_Pri(tokenizer.remaining(), response);
+      Command_Pri(0, tokenizer.remaining(), response);
+    } else if (cmd == "pri2") {
+      Command_Pri2(tokenizer.remaining(), response);
     } else {
       WriteMessage("ERR unknown command\r\n", response);
     }
   }
 
-  void Command_Tx(std::string_view remaining,
+  void Command_Tx2(std::string_view command,
+                   const micro::CommandManager::Response& response) {
+    mjlib::base::Tokenizer tokenizer(command, " ");
+    auto remote_index_str = tokenizer.next();
+
+    const int remote_index =
+        std::max<int>(
+            0, std::min<int>(
+                SlotRfProtocol::kNumRemotes - 1,
+                std::strtol(remote_index_str.data(), nullptr, 0)));
+
+    Command_Tx(remote_index, tokenizer.remaining(), response);
+  }
+
+  void Command_Tx(int remote_index,
+                  std::string_view remaining,
                   const micro::CommandManager::Response& response) {
     mjlib::base::Tokenizer tokenizer(remaining, " ");
 
@@ -207,12 +251,12 @@ class SlotRfManager::Impl {
     const int slot_index =
         std::max<int>(
             0, std::min<int>(
-                SlotRfProtocol::kNumSlots,
+                SlotRfProtocol::kNumSlots - 1,
                 std::strtol(slot_str.data(), nullptr, 0)));
 
     SlotRfProtocol::Slot slot;
     slot.size = hexdata.size() / 2;
-    slot.priority = priorities_[slot_index];
+    slot.priority = priorities_[remote_index].priorities[slot_index];
 
     for (size_t i = 0; i < hexdata.size(); i += 2) {
       const int value = ParseHexByte(&hexdata[i]);
@@ -223,12 +267,29 @@ class SlotRfManager::Impl {
       slot.data[i / 2] = value;
     }
 
-    slot_->remote()->tx_slot(slot_index, slot);
+    slot_->remote(remote_index)->tx_slot(slot_index, slot);
+
+    timeout_remaining_ = config_.transmit_timeout_ms;
 
     WriteOK(response);
   }
 
-  void Command_Pri(std::string_view remaining,
+  void Command_Pri2(std::string_view command,
+                    const micro::CommandManager::Response& response) {
+    mjlib::base::Tokenizer tokenizer(command, " ");
+    auto remote_index_str = tokenizer.next();
+
+    const int remote_index =
+        std::max<int>(
+            0, std::min<int>(
+                SlotRfProtocol::kNumRemotes - 1,
+                std::strtol(remote_index_str.data(), nullptr, 0)));
+
+    Command_Pri(remote_index, tokenizer.remaining(), response);
+  }
+
+  void Command_Pri(int remote_index,
+                   std::string_view remaining,
                    const micro::CommandManager::Response& response) {
     mjlib::base::Tokenizer tokenizer(remaining, " ");
 
@@ -243,18 +304,36 @@ class SlotRfManager::Impl {
     const int slot_index =
         std::max<int>(
             0, std::min<int>(
-                SlotRfProtocol::kNumSlots,
+                SlotRfProtocol::kNumSlots - 1,
                 std::strtol(slot_str.data(), nullptr, 0)));
     const uint32_t priority =
         std::strtoul(pri_str.data(), nullptr, 16);
 
-    priorities_[slot_index] = priority;
+    priorities_[remote_index].priorities[slot_index] = priority;
 
-    auto slot = slot_->remote()->tx_slot(slot_index);
+    auto* const remote = slot_->remote(remote_index);
+    auto slot = remote->tx_slot(slot_index);
     slot.priority = priority;
-    slot_->remote()->tx_slot(slot_index, slot);
+    remote->tx_slot(slot_index, slot);
 
     WriteOK(response);
+  }
+
+  void DisableTransmit() {
+    // Set all the priorities at the lower level to 0, so we stop
+    // sending slots.
+    for (int remote_index = 0;
+         remote_index < SlotRfProtocol::kNumRemotes;
+         remote_index++) {
+      auto* const remote = slot_->remote(remote_index);
+      for (int slot_index = 0;
+           slot_index < SlotRfProtocol::kNumSlots;
+           slot_index++) {
+        auto slot = remote->tx_slot(slot_index);
+        slot.priority = 0;
+        remote->tx_slot(slot_index, slot);
+      }
+    }
   }
 
   void WriteOK(const micro::CommandManager::Response& response) {
@@ -273,14 +352,20 @@ class SlotRfManager::Impl {
   Config config_;
 
   std::optional<SlotRfProtocol> slot_;
-  uint32_t last_bitfield_ = 0;
+  std::array<uint32_t, SlotRfProtocol::kNumRemotes> last_bitfields_ = {};
   uint8_t last_channel_ = 0;
 
-  uint32_t priorities_[16] = {};
+  struct Priorities {
+    uint32_t priorities[16] = {};
+  };
+
+  std::array<Priorities, SlotRfProtocol::kNumRemotes> priorities_;
 
   bool write_outstanding_ = false;
   char emit_line_[256] = {};
   micro::VoidCallback done_callback_;
+
+  int32_t timeout_remaining_ = 0;
 };
 
 SlotRfManager::SlotRfManager(

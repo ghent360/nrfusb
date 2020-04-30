@@ -25,16 +25,14 @@ namespace fw {
 class SlotRfProtocol {
  public:
   static constexpr int kNumSlots = 15;
-  static constexpr int kNumRemotes = 4;
+  static constexpr int kNumRemotes = 2;
 
   struct Options {
     bool ptx = true;
     /// 0 is reserved to mean that the particular ID is disabled.  In
     /// receive mode, only id1 is used.
-    std::array<uint32_t, 4> ids = {
+    std::array<uint32_t, kNumRemotes> ids = {
       0x3045,
-      0,
-      0,
       0,
     };
     int32_t data_rate = 1000000;
