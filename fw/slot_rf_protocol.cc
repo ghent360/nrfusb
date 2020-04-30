@@ -80,7 +80,7 @@ class SlotRfProtocol::Impl {
       rx_miss_count_ = 0;
     }
 
-    remotes_[remote_index_].ParsePacket(rx_packet_);
+    remotes_[last_transmit_remote_index_].ParsePacket(rx_packet_);
   }
 
   void PollMillisecond() {
@@ -109,6 +109,7 @@ class SlotRfProtocol::Impl {
 
     if (remote->enabled()) {
       if (remote_timer == 0) {
+        last_transmit_remote_index_ = remote_index_;
         TransmitCycle();
       } else if (remote_timer == 2) {
         // Switch to the next remote 2ms before we transmit.
@@ -420,6 +421,7 @@ class SlotRfProtocol::Impl {
   std::array<ConcreteRemote, kNumRemotes> remotes_;
   uint8_t channel_index_ = 0;
   uint8_t remote_index_ = 0;
+  uint8_t last_transmit_remote_index_ = 0;
 
   /// For transmitters, this is the canonical source of the system
   /// time.  For receivers, we attempt to synchronize this to
