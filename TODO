@@ -1,9 +1,11 @@
- * support a tx communicating with two different receivers simultaneously
-
  * Try to provide a USB interface that lets you drop down to the low
    level access?
  * occasionally see USB become unresponsive after programming a
    different device... maybe just brown out?
+
+DONE 2020-04-30
+ * Got communication with two receivers working
+ * optional dead-man timeout on transmitting
 
 DONE 2020-03-17
  * Got frequency hopping working
