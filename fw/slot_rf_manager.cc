@@ -375,9 +375,8 @@ SlotRfManager::SlotRfManager(
     micro::AsyncExclusive<micro::AsyncWriteStream>& stream,
     MillisecondTimer* timer,
     const Options& options)
-    : impl_(&pool, persistent_config, command_manager, stream, timer, options) {}
-
-SlotRfManager::~SlotRfManager() {}
+    : impl_(&pool, persistent_config, command_manager, stream, timer, options) {
+}
 
 void SlotRfManager::Poll() {
   impl_->Poll();

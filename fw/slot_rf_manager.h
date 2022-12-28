@@ -36,7 +36,6 @@ class SlotRfManager {
                 mjlib::micro::AsyncExclusive<mjlib::micro::AsyncWriteStream>&,
                 MillisecondTimer*,
                 const Options&);
-  ~SlotRfManager();
 
   void Poll();
   void PollMillisecond();

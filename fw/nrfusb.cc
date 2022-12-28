@@ -25,6 +25,7 @@
 #include "fw/slot_rf_manager.h"
 #include "fw/stm32g4_flash.h"
 #include "fw/stm32g4_async_usb_cdc.h"
+#include "usb.h"
 
 namespace {
 namespace base = mjlib::base;
@@ -39,7 +40,8 @@ using Manager = fw::SlotRfManager;
 }
 
 int main(void) {
-  DigitalOut power_led{PB_15, 1};
+  usb_init_rcc();
+  //DigitalOut power_led{PB_15, 1};
 
   fw::MillisecondTimer timer;
 
@@ -90,26 +92,17 @@ int main(void) {
   command_manager.AsyncStart();
   manager.Start();
 
+  uint32_t old = timer.read_ms();;
   while (true) {
-    const uint32_t start = timer.read_ms();
-    uint32_t old = start;
+    const uint32_t now = timer.read_ms();
 
-    while (true) {
-      const uint32_t now = timer.read_ms();
+    usb.Poll();
+    manager.Poll();
 
-      usb.Poll();
-      manager.Poll();
-
-      if (now != old) {
-        manager.PollMillisecond();
-
-        old = now;
-      }
-
-      if (now - start > 10) { break; }
+    if (now != old) {
+      manager.PollMillisecond();
+      old = now;
     }
-
-    usb.Poll10Ms();
   }
 }
 

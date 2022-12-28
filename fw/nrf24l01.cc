@@ -222,7 +222,9 @@ void Nrf24l01::ReadPacket() {
   nrf_.Command(0x60,  // R_RX_PL_WID
                {},
                {reinterpret_cast<char*>(&payload_width), 1});
-
+  if (payload_width > 16) {
+    return;
+  }
   rx_packet_.size = payload_width;
   if (payload_width) {
     nrf_.Command(0x61, {}, {&rx_packet_.data[0],

@@ -59,6 +59,7 @@ class SlotRfProtocol {
 
   class Remote {
    public:
+    virtual ~Remote() {}
     /// Return a bitfield with 2 bits per slot.  The 2 bit number
     /// increments upon each receipt of that slot.  This can be used to
     /// efficiently poll to see if any slots have been received and
@@ -87,7 +88,7 @@ class SlotRfProtocol {
 
  private:
   class Impl;
-  mjlib::micro::StaticPtr<Impl, 4096> impl_;
+  mjlib::micro::StaticPtr<Impl, 2048+256> impl_;
 };
 
 }

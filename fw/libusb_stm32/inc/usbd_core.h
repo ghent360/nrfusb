@@ -474,6 +474,8 @@ inline static uint32_t usbd_getinfo(usbd_device *dev) {
 /** @} */
 /** @} */
 
+void usb_init_rcc (void);
+
 #if defined(__cplusplus)
     }
 #endif

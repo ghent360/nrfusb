@@ -27,7 +27,7 @@ load("@com_github_mjbots_rules_mbed//:rules.bzl", mbed_register = "mbed_register
 
 mbed_register(
     config = {
-        "mbed_target": "targets/TARGET_STM/TARGET_STM32F4/TARGET_STM32F407xG/TARGET_DISCO_F407VG",
+        "mbed_target": "targets/TARGET_STM/TARGET_STM32F4/TARGET_STM32F407xE/TARGET_ARCH_MAX",
         "mbed_config": {
             "MBED_CONF_RTOS_PRESENT": "0",
             "DEVICE_STDIO_MESSAGES": "0",
