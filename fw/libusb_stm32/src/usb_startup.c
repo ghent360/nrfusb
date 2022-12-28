@@ -133,7 +133,7 @@ void usb_init_rcc (void) {
 #elif defined(STM32F429xx) || defined(STM32F405xx) \
     || defined(STM32F401xC) || defined(STM32F401xE)  || defined(STM32F411xE) \
     || defined(TARGET_STM32F407)
-#if 0    
+#if 0 // Main clock is already initialized.
     /* set flash latency 2WS */
     _BMD(FLASH->ACR, FLASH_ACR_LATENCY, FLASH_ACR_LATENCY_2WS);
     /* setting up PLL 16MHz HSI, VCO=144MHz, PLLP = 72MHz PLLQ = 48MHz  */
