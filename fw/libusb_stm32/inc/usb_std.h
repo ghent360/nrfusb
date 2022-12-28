@@ -44,9 +44,9 @@ extern "C" {
                                     .bDescriptorType = USB_DTYPE_STRING,\
                                     .wString = {__VA_ARGS__}}
 /** Macro to create \ref usb_string_descriptor from string */
-#define USB_STRING_DESC(s)         {.bLength = sizeof(s),\
+#define USB_STRING_DESC(s)         {.bLength = sizeof(CAT(u,s)),\
                                     .bDescriptorType = USB_DTYPE_STRING,\
-                                    .wString = s}
+                                    .wString = {CAT(u,s)}}
 
 /**\brief Macro to set мaximum power consumption field for the \ref usb_config_descriptor */
 #define USB_CFG_POWER_MA(mA)        ((mA) >> 1)

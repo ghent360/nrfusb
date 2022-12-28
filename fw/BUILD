@@ -45,11 +45,13 @@ mbed_binary(
         "stm32g4_async_usb_cdc.cc",
         "stm32g4_flash.h",
         "usbd_stm32g474_devfs.c",
+        "libusb_stm32/inc/stm32_compat.h",
         "libusb_stm32/inc/usb.h",
         "libusb_stm32/inc/usb_cdc.h",
         "libusb_stm32/inc/usbd_core.h",
         "libusb_stm32/inc/usb_std.h",
         "libusb_stm32/src/usbd_core.c",
+        "libusb_stm32/src/usbd_stm32f429_otgfs.c",
     ],
     deps = [
         ":git_info",

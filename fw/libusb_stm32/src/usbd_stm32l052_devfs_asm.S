@@ -61,6 +61,17 @@
 #define RXADDR      0x04
 #define RXCOUNT     0x06
 
+#if defined(STM32F070x6) || defined(STM32F070xB) || \
+    defined(STM32F042x6) || defined(STM32F048xx) || \
+    defined(STM32F072xB) || defined(STM32F078xx)
+    #define UID_OFFSET_0    0x00
+    #define UID_OFFSET_1    0x04
+    #define UID_OFFSET_2    0x08
+#else
+    #define UID_OFFSET_0    0x00
+    #define UID_OFFSET_1    0x04
+    #define UID_OFFSET_2    0x14
+#endif
 
 #define EP_NOTOG    (EP_RX_CTR | EP_TX_CTR | EP_SETUP | EP_TYPE | EP_KIND | EP_ADDR)
 
@@ -78,8 +89,8 @@
     .cpu cortex-m0plus
     .thumb
 
-    .align  4
     .section .rodata.usbd_devfs_asm
+    .align  4
     .globl  usbd_devfs_asm
 usbd_devfs_asm:
     .long   _getinfo
@@ -114,11 +125,11 @@ _get_serial_desc:
     strb    r1,[r0, #0x01]
     ldr     r5, .L_uid_base     //UID3 this is the serial number
     ldr     r4, .L_fnv1a_offset //FNV1A offset
-    ldr     r2, [r5, 0x00]      //UID0
+    ldr     r2, [r5, UID_OFFSET_0]   //UID0
     bl      .L_fnv1a
-    ldr     r2, [r5, 0x04]      //UID1
+    ldr     r2, [r5, UID_OFFSET_1]   //UID1
     bl      .L_fnv1a
-    ldr     r2, [r5, 0x14]      //UID2
+    ldr     r2, [r5, UID_OFFSET_2]   //UID2
     bl      .L_fnv1a
     movs    r3, #28
 .L_gsn_loop:
@@ -162,7 +173,7 @@ _get_serial_desc:
     .thumb_func
     .type   _connect, %function
 _connect:
-    ldr     r3, =#USB_REGBASE
+    ldr     r3, =USB_REGBASE
     movs    r1, #0x03               //BCDEN + DCDEN
     movs    r2, #usbd_lane_dsc
     strh    r1, [r3, #USB_BCDR]
@@ -206,7 +217,7 @@ _setaddr:
     .thumb_func
     .type   _get_frame, %function
 _get_frame:
-    ldr     r0, =#USB_REGBASE
+    ldr     r0, =USB_REGBASE
     ldrh    r0, [r0, #USB_FNR]     //FNR
     lsls    r0, #21
     lsrs    r0, #21
@@ -216,10 +227,9 @@ _get_frame:
     .thumb_func
     .type   _enable, %function
 _enable:
-    ldr     r1, =#USB_REGBASE     //USB->CNTR
-    ldr     r2, =#RCC_BASE        //RCC
+    ldr     r1, =USB_REGBASE     //USB->CNTR
+    ldr     r2, =RCC_BASE        //RCC
     movs    r3, #0x01
-//    lsls    r3, #23             //USBEN or USBRST
     lsls    r3, #RCC_USBEN        //USBEN or USBRST
     tst     r0, r0
     beq     .L_disable
@@ -232,6 +242,20 @@ _enable:
     str     r0, [r2, #RCC_APB1RSTR]     //RCC->APB1RSTR |= USBRST
     bics    r0, r3
     str     r0, [r2, #RCC_APB1RSTR]     //RCC->APB1RSTR &= ~USBRST
+
+#if defined(USBD_PINS_REMAP) && (defined(STM32F042x6) || defined(STM32F048xx) || defined(STM32F070x6))
+    ldr     r0, [r2, #RCC_APB2ENR]
+    movs    r3, #0x01
+    orrs    r0, r3
+    str     r0, [r2, #RCC_APB2ENR]      //RCC->APB2ENR |= RCC_APB2ENR_SYSCFGCOMPEN
+
+    ldr     r2, =SYSCFG_BASE           //SYSCFG->CFGR1
+    ldr     r0, [r2]
+    lsls    r3, #SYSCFG_USBREMAP
+    orrs    r0, r3
+    str     r0, [r2]                    //SYSCFG->CFGR1 |= SYSCFG_CFGR1_PA11_PA12_RMP;	// remap USB pins for small packages
+#endif
+
 #if !defined(USBD_SOF_DISABLED)
     movs    r0, #0xBE                   // CTRM | ERRM | WKUPM | SUSPM | RESETM | SOFM
 #else
@@ -260,12 +284,12 @@ _enable:
     .type   _getinfo, %function
 _getinfo:
     movs    r0, #USBD_HW_BC
-    ldr     r2, =#RCC_BASE
+    ldr     r2, =RCC_BASE
     ldr     r1, [r2, #RCC_APB1ENR]
     lsrs    r1, #24                     //USBEN -> CF
     bcc     .L_getinfo_end
     adds    r0, #USBD_HW_ENABLED
-    ldr     r2, =#USB_REGBASE
+    ldr     r2, =USB_REGBASE
     ldr     r1, [r2, #USB_BCDR]
     lsrs    r1, #15                     //DPPU -> CF
     bcc     .L_getinfo_end
@@ -284,7 +308,7 @@ _ep_setstall:
     push    {r4, lr}
     lsls    r2, r0, #28
     lsrs    r2, #26
-    ldr     r3, =#USB_EPBASE
+    ldr     r3, =USB_EPBASE
     adds    r3, r2          // epr -> r3
     movs    r2, 0x30        // TX_STAT_MASK -> r2
     ldrh    r4, [r3]
@@ -295,25 +319,25 @@ _ep_setstall:
     cmp     r0, #0x80
     blo     .L_eps_rx
 .L_eps_tx:
-    ldr     r0, =#TX_STALL   //stall TX
+    ldr     r0, =TX_STALL   //stall TX
     cmp     r1, #0x00
     bne     .L_eps_reg_set
 .L_eps_tx_unstall:
-    ldr     r0, =#DTX_USTALL //unstall dblbulk or iso TX (VALID and clr DTOG_TX & SWBUF_TX)
+    ldr     r0, =DTX_USTALL //unstall dblbulk or iso TX (VALID and clr DTOG_TX & SWBUF_TX)
     cmp     r4, #0x01       // if doublebuffered bulk endpoint
     beq     .L_eps_reg_set
-    ldr     r0, =#TX_USTALL  // unstall other TX (NAKED + clr DTOG_TX)
+    ldr     r0, =TX_USTALL  // unstall other TX (NAKED + clr DTOG_TX)
     b       .L_eps_reg_set
 .L_eps_rx:
     lsls    r2, #8          // RX_STAT_MASK -> R2
-    ldr     r0,=#RX_STALL    //stall RX
+    ldr     r0,=RX_STALL    //stall RX
     cmp     r1, #0x00
     bne     .L_eps_reg_set
 .L_eps_rx_unstall:
-    ldr     r0, =#DRX_USTALL //unstall dblbulk or iso (VALID. clr DTOG_RX set SWBUF_RX)
+    ldr     r0, =DRX_USTALL //unstall dblbulk or iso (VALID. clr DTOG_RX set SWBUF_RX)
     cmp     r4, #0x01       // if dblbulk
     beq     .L_eps_reg_set
-    ldr     r0, =#RX_USTALL  // unstall other RX (VALID + clr
+    ldr     r0, =RX_USTALL  // unstall other RX (VALID + clr
 /* R0 - mask and toggle bits
  * R2 - mask for STAT bits
  * R3 - endpoint register pointer
@@ -335,20 +359,19 @@ _ep_setstall:
     .type   _ep_isstalled, %function
 /* bool ep_isstalled(uint8t ep) */
 _ep_isstalled:
-    ldr     r1, =#USB_EPBASE
+    ldr     r1, =USB_EPBASE
     lsls    r2, r0, #28
     lsrs    r2, #26
     ldr     r1, [r1, r2]
-    lsls    r1, #17
+    lsls    r1, #18
     cmp     r0, #0x80
-    bhs     .L_eis_check
+    blo     .L_eis_check
     lsls    r1, #8
 .L_eis_check:
-    lsrs    r1, r1, #28
-    subs    r1, #0x01
-    subs    r0, r1, #0x01
-    sbcs    r1, r1
-    rsbs    r0, r1, #0
+    lsrs    r0, r1, #30
+    subs    r0, #0x01
+    subs    r1, r0, #0x01
+    sbcs    r0, r0
     bx      lr
     .size  _ep_isstalled, . - _ep_isstalled
 
@@ -363,8 +386,8 @@ _ep_isstalled:
  */
 _ep_read:
     push    {r4, r5, lr}
-    ldr     r3, =#USB_EPBASE
-    ldr     r4, =#USB_PMABASE
+    ldr     r3, =USB_EPBASE
+    ldr     r4, =USB_PMABASE
     lsls    r0, #28
     lsrs    r0, #26
     adds    r3, r0          // *EPR -> R3
@@ -395,7 +418,7 @@ _ep_read:
     eors    r0, r5
     lsrs    r0, #7          // SW_RX ^ DTOG_RX -> CF
     bcs     .L_epr_notog    // jmp if SW_RX != DTOG_RX (VALID)
-    ldr     r0, =#EP_NOTOG
+    ldr     r0, =EP_NOTOG
     ands    r5, r0
     adds    r5, #EP_RX_SWBUF
     strh    r5, [r3]        // toggling SW_RX
@@ -414,7 +437,7 @@ _ep_read:
     lsls    r0, #22
     lsrs    r0, #22         // r0 &= 0x3FF (RX count)
     ldrh    r5, [r4, #RXADDR]
-    ldr     r4, =#USB_PMABASE
+    ldr     r4, =USB_PMABASE
     adds    r5, r4          // R5 now has a physical address
     cmp     r2, r0
     blo     .L_epr_read
@@ -439,7 +462,7 @@ _ep_read:
     beq     .L_epr_exit     // ep is iso. no needs to set it to valid
     cmp     r1, #0x01
     beq     .L_epr_exit     // ep is dblbulk. no needs to set it to valid
-    ldr     r2, =#TGL_SET(EP_RX_STAT , EP_RX_VAL)
+    ldr     r2, =TGL_SET(EP_RX_STAT , EP_RX_VAL)
     eors    r5, r2
     lsrs    r2, #16
     ands    r5, r2
@@ -452,7 +475,7 @@ _ep_read:
 
     .thumb_func
     .type   _ep_write, %function
-/* int32_t ep_write(uint8_t ep, void *buf, uint16_t blen)
+/* int32_t ep_write(uint8_t ep, const void *buf, uint16_t blen)
  * R0 -> endpoint
  * R1 -> *buffer
  * R2 -> data length
@@ -460,8 +483,8 @@ _ep_read:
  */
 _ep_write:
     push    {r4, r5, r6, lr}
-    ldr     r3, =#USB_EPBASE
-    ldr     r4, =#USB_PMABASE
+    ldr     r3, =USB_EPBASE
+    ldr     r4, =USB_PMABASE
     lsls    r0, #28
     lsrs    r0, #26
     adds    r3, r0          // *EPR -> R3
@@ -496,7 +519,7 @@ _ep_write:
     strh    r2, [r4, #TXCOUNT]
     mov     r0, r2          // save count for return
     ldrh    r5, [r4, #TXADDR]
-    ldr     r4, =#USB_PMABASE
+    ldr     r4, =USB_PMABASE
     adds    r5, r4          // PMA BUFFER -> R5
 .L_epw_write:
     cmp     r2, #1
@@ -518,10 +541,10 @@ _ep_write:
     lsrs    r1, #29
     cmp     r1, #0x04
     beq     .L_epw_exit     // isochronous ep. do nothing
-    ldr     r2, =#TGL_SET(EP_TX_STAT, EP_TX_VAL)
+    ldr     r2, =TGL_SET(EP_TX_STAT, EP_TX_VAL)
     cmp     r1, #0x01
     bne     .L_epw_setstate // NOT a doublebuffered bulk
-    ldr     r2, =#TGL_SET(EP_TX_SWBUF, EP_TX_SWBUF)
+    ldr     r2, =TGL_SET(EP_TX_SWBUF, EP_TX_SWBUF)
     bics    r5, r2          // clear TX_SWBUF
 .L_epw_setstate:
     eors    r5, r2
@@ -541,7 +564,7 @@ _get_next_pma:
     movs    r1, #0x3C
     movs    r3, #1
     lsls    r3, #10         //R3 MAX_PMA_SIZE
-    ldr     r0, =#USB_PMABASE
+    ldr     r0, =USB_PMABASE
 .L_gnp_chkaddr:
     ldrh    r4, [r0, r1]
     tst     r4, r4
@@ -591,14 +614,14 @@ _ep_config:
     lsrs    r4, #28
     orrs    r3, r4
     lsls    r4, #2
-    ldr     r5, =#USB_EPBASE
+    ldr     r5, =USB_EPBASE
     strh    r3, [r5, r4]    //setup EPTYPE EPKIND EPADDR
     cmp     r1, #0x00       // is a control ep ?
     beq     .L_epc_setuptx
     cmp     r0, #0x80
     blo     .L_epc_setuprx
 .L_epc_setuptx:
-    ldr     r5, =#USB_PMABASE
+    ldr     r5, =USB_PMABASE
     lsls    r4, #1
     adds    r5, r4
 /* setup buffer table */
@@ -610,19 +633,19 @@ _ep_config:
     strh    r0, [r5, #TXCOUNT]  //store txcnt
     cmp     r1, #0x06           // is DBLBULK
     beq     .L_epc_txdbl
-    ldr     r3, =#TX_USTALL     //set state NAKED , clr DTOG_TX
+    ldr     r3, =TX_USTALL     //set state NAKED , clr DTOG_TX
     cmp     r1, #0x01
     bne     .L_epc_txsetstate   //if single buffered
 .L_epc_txdbl:
 /* TX1 */
-    ldr     r3, =#DTX_USTALL //set state VALID clr DTOG_TX & SWBUF_TX
+    ldr     r3, =DTX_USTALL //set state VALID clr DTOG_TX & SWBUF_TX
     bl      _get_next_pma
     bcc     .L_epc_fail
     strh    r0, [r5, #TXADDR1]    //store txaddr1
     movs    r0, #0x00
     strh    r0, [r5, #TXCOUNT1]    //store txcnt
 .L_epc_txsetstate:
-    ldr     r5, =#USB_EPBASE
+    ldr     r5, =USB_EPBASE
     lsrs    r4, #1
     ldrh    r0, [r5, r4]
     eors    r0, r3
@@ -633,21 +656,18 @@ _ep_config:
     bne     .L_epc_exit
 .L_epc_setuprx:
 /* calculating RX_COUNT field. result in R3*/
-    mov     r3, r2
+    movs    r3, r2
     cmp     r2, #62
     bls     .L_epc_rxbb
+    /* ep size must be 32-byte aligned if >= 64 */
     movs    r3, #0x1F
-    ands    r3, r2
-    bne     .L_epc_rxaa
-    subs    r2, #0x20
-.L_epc_rxaa:
+    adds    r2, r3
     bics    r2, r3
     lsrs    r3, r2, #4
-    adds    r3, #0x40
-    adds    r2, #0x20
+    adds    r3, #0x3E
 .L_epc_rxbb:
     lsls    r3, #9
-    ldr     r5, =#USB_PMABASE
+    ldr     r5, =USB_PMABASE
     lsls    r4, #1
     adds    r5, r4
 /* setup buffer table */
@@ -656,7 +676,7 @@ _ep_config:
 /* set RX or RX1 */
     strh    r0, [r5, #RXADDR]
     strh    r3, [r5, #RXCOUNT]
-    ldr     r0, =#RX_USTALL
+    ldr     r0, =RX_USTALL
 /* check if doublebuffered */
     cmp     r1, 0x06    //if dblbulk
     beq     .L_epc_rxdbl
@@ -667,9 +687,9 @@ _ep_config:
     bcc     .L_epc_fail
     strh    r0, [r5, #RXADDR0]    //store rxaddr0
     strh    r3, [r5, #RXCOUNT0]    //store rxcnt0
-    ldr     r0, =#DRX_USTALL
+    ldr     r0, =DRX_USTALL
 .L_epc_rxsetstate:
-    ldr     r5, =#USB_EPBASE
+    ldr     r5, =USB_EPBASE
     lsrs    r4, #1
     ldrh    r3, [r5, r4]
     eors    r3, r0
@@ -695,13 +715,13 @@ _ep_config:
 _ep_deconfig:
     lsls    r1, r0, #28
     lsrs    r1, #26
-    ldr     r2, =#USB_EPBASE
-    ldr     r3, =#USB_PMABASE
+    ldr     r2, =USB_EPBASE
+    ldr     r3, =USB_PMABASE
     adds    r2, r1
     lsls    r1, #1
     adds    r3, r1
 /* clearing endpoint register */
-    ldr     r1, =#EP_NOTOG
+    ldr     r1, =EP_NOTOG
     ldrh    r0, [r2]
     bics    r0, r1
     strh    r0, [r2]
@@ -724,7 +744,7 @@ _ep_deconfig:
 /*void evt_poll(usbd_device *dev, usbd_evt_callback callback)*/
 _evt_poll:
     push    {r0, r1, r4, r5}
-    ldr     r3, =#USB_REGBASE
+    ldr     r3, =USB_REGBASE
     ldrh    r0, [r3, #4]        //USB->ISTR -> R2
 /* ep_index -> R2 */
     movs    r2, 0x07
@@ -750,7 +770,7 @@ _evt_poll:
 
 .L_ep_ctrm:
     movs    r5, #0x80           // CTR_TX mask to R5
-    ldr     r0,=#USB_EPBASE
+    ldr     r0,=USB_EPBASE
     lsrs    r0, #2
     adds    r0, r2
     lsls    r0, #2              // R0 ep register address
@@ -770,7 +790,7 @@ _evt_poll:
     movs    r1, #usbd_evt_epsetup
 .L_ep_clr_ctr:
     bics    r4, r5              //clear CTR flag
-    ldr     r5, =#EP_NOTOG
+    ldr     r5, =EP_NOTOG
     ands    r4, r5
     strh    r4, [r0]            // store
     b       .L_ep_callback
@@ -804,9 +824,9 @@ _evt_poll:
 /* do reset routine */
 .L_ep_resetm:
     movs    r1, #7
-    ldr     r2, =#USB_EPBASE
-    ldr     r0, =#USB_PMABASE
-    ldr     r5, =#EP_NOTOG
+    ldr     r2, =USB_EPBASE
+    ldr     r0, =USB_PMABASE
+    ldr     r5, =EP_NOTOG
 .L_ep_reset_loop:
     ldrh    r4, [r2]
     bics    r4, r5

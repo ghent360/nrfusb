@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "stm32.h"
+#include "stm32_compat.h"
 
 static void cdc_init_rcc (void) {
 #if defined(STM32L0)
@@ -84,7 +84,7 @@ static void cdc_init_rcc (void) {
     _BMD(FLASH->ACR, FLASH_ACR_LATENCY, FLASH_ACR_LATENCY_1);
     /* use PLL 48MHz clock from 8Mhz HSI */
     _BMD(RCC->CFGR,
-         RCC_CFGR_PLLMUL | RCC_CFGR_PLLSRC | RCC_CFGR_USBPRE ,
+         RCC_CFGR_PLLMUL | RCC_CFGR_PLLSRC | RCC_CFGR_USBPRE,
          RCC_CFGR_PLLMUL12 | RCC_CFGR_USBPRE);
     _BST(RCC->CR, RCC_CR_PLLON);
     _WBS(RCC->CR, RCC_CR_PLLRDY);
@@ -92,7 +92,46 @@ static void cdc_init_rcc (void) {
     _BMD(RCC->CFGR, RCC_CFGR_SW, RCC_CFGR_SW_PLL);
     _WVL(RCC->CFGR, RCC_CFGR_SWS, RCC_CFGR_SWS_PLL);
 
-#elif defined(STM32F429xx)
+#elif defined(STM32F303xC)
+    /* set flash latency 1WS */
+    _BMD(FLASH->ACR, FLASH_ACR_LATENCY, FLASH_ACR_LATENCY_1);
+    /* use PLL 48MHz clock from 8Mhz HSI */
+    _BMD(RCC->CFGR,
+         RCC_CFGR_PLLMUL | RCC_CFGR_PLLSRC | RCC_CFGR_USBPRE,
+         RCC_CFGR_PLLMUL12 | RCC_CFGR_USBPRE);
+    _BST(RCC->CR, RCC_CR_PLLON);
+    _WBS(RCC->CR, RCC_CR_PLLRDY);
+    /* switch to PLL */
+    _BMD(RCC->CFGR, RCC_CFGR_SW, RCC_CFGR_SW_PLL);
+    _WVL(RCC->CFGR, RCC_CFGR_SWS, RCC_CFGR_SWS_PLL);
+    
+    _BST(RCC->AHBENR, RCC_AHBENR_GPIOAEN);
+    _BST(GPIOA->AFR[1], (0x0E << 12) | (0x0E << 16));
+    _BMD(GPIOA->MODER, (0x03 << 22) | (0x03 << 24), (0x02 << 22) | (0x02 << 24));
+
+#elif defined(STM32F373xC)
+    /* set flash latency 1WS */
+    _BMD(FLASH->ACR, FLASH_ACR_LATENCY, FLASH_ACR_LATENCY_1);
+    _BMD(RCC->CFGR,
+         RCC_CFGR_PLLMUL | RCC_CFGR_PLLSRC | RCC_CFGR_USBPRE | RCC_CFGR_PPRE1,
+         RCC_CFGR_PLLMUL12  | RCC_CFGR_USBPRE | RCC_CFGR_PPRE1_DIV2);
+    _BST(RCC->CR, RCC_CR_PLLON);
+    _WBS(RCC->CR, RCC_CR_PLLRDY);
+    /* switch to PLL */
+    _BMD(RCC->CFGR, RCC_CFGR_SW, RCC_CFGR_SW_PLL);
+    _WVL(RCC->CFGR, RCC_CFGR_SWS, RCC_CFGR_SWS_PLL);
+
+    /* Enabling USB PA11 PA12 AF 0x0E.
+     * This is still undocumented in the 7th!! revision of the datasheet.
+     * Thank you, mo***rs from ST for extra 5 hrs of debugging.
+     */
+    _BST(RCC->AHBENR, RCC_AHBENR_GPIOAEN);
+    _BST(GPIOA->AFR[1], (0x0E << 12) | (0x0E << 16));
+    _BMD(GPIOA->MODER, (0x03 << 22) | (0x03 << 24), (0x02 << 22) | (0x02 << 24)); // MCO
+
+
+#elif defined(STM32F429xx) || defined(STM32F405xx) \
+    || defined(STM32F401xC) || defined(STM32F401xE)  || defined(STM32F411xE)
     /* set flash latency 2WS */
     _BMD(FLASH->ACR, FLASH_ACR_LATENCY, FLASH_ACR_LATENCY_2WS);
     /* setting up PLL 16MHz HSI, VCO=144MHz, PLLP = 72MHz PLLQ = 48MHz  */
@@ -121,6 +160,30 @@ static void cdc_init_rcc (void) {
     _BST(GPIOA->AFR[1], (0x0A << 12) | (0x0A << 16));
     _BMD(GPIOA->MODER, (0x03 << 22) | (0x03 << 24), (0x02 << 22) | (0x02 << 24));
     #endif //defined(USBD_PRIMARY_OTGHS)
+
+#elif defined(STM32F446xx) || defined(STM32F745xx)
+    /* set flash latency 2WS */
+    _BMD(FLASH->ACR, FLASH_ACR_LATENCY, FLASH_ACR_LATENCY_2WS);
+    /* setting up PLL 16MHz HSI, VCO=144MHz, PLLP = 72MHz PLLQ = 48MHz  */
+    _BMD(RCC->PLLCFGR,
+        RCC_PLLCFGR_PLLM | RCC_PLLCFGR_PLLN | RCC_PLLCFGR_PLLP | RCC_PLLCFGR_PLLSRC | RCC_PLLCFGR_PLLQ,
+        _VAL2FLD(RCC_PLLCFGR_PLLM, 8) | _VAL2FLD(RCC_PLLCFGR_PLLN, 72) | _VAL2FLD(RCC_PLLCFGR_PLLQ, 3));
+    /* enabling PLL */
+    _BST(RCC->CR, RCC_CR_PLLON);
+    _WBS(RCC->CR, RCC_CR_PLLRDY);
+    /* switching to PLL */
+    _BMD(RCC->CFGR, RCC_CFGR_SW, RCC_CFGR_SW_PLL);
+    _WVL(RCC->CFGR, RCC_CFGR_SWS, RCC_CFGR_SWS_PLL);
+    /* enabling GPIOA and setting PA11 and PA12 to AF10 (USB_FS) */
+    #if defined(USBD_PRIMARY_OTGHS)
+    _BST(RCC->AHB1ENR, RCC_AHB1ENR_GPIOBEN);
+    _BST(GPIOB->AFR[1], (0x0C << 24) | (0x0C << 28));
+    _BMD(GPIOB->MODER, (0x03 << 28) | (0x03 << 30), (0x02 << 28) | (0x02 << 30));
+    #else
+    _BST(RCC->AHB1ENR, RCC_AHB1ENR_GPIOAEN);
+    _BST(GPIOA->AFR[1], (0x0A << 12) | (0x0A << 16));
+    _BMD(GPIOA->MODER, (0x03 << 22) | (0x03 << 24), (0x02 << 22) | (0x02 << 24));
+    #endif
 
 #elif defined(STM32F105xC) || defined(STM32F107xC)
     _BST(RCC->CR, RCC_CR_HSION);
@@ -196,6 +259,44 @@ static void cdc_init_rcc (void) {
     _BMD(RCC->CFGR, RCC_CFGR_SW, RCC_CFGR_SW_PLL);
     _WVL(RCC->CFGR, RCC_CFGR_SWS, RCC_CFGR_SWS_PLL);
     _BST(RCC->CFGR3, RCC_CFGR3_USBSW_PLLCLK);
+#elif defined(STM32F042x6)
+    /* set flash latency 1WS */
+    _BST(FLASH->ACR, FLASH_ACR_LATENCY);
+    /* use HSI48 as clock incl. USB PHY clock, no PLL */
+	_BST(RCC->CR2, RCC_CR2_HSI48ON);
+	_WBS(RCC->CR2, RCC_CR2_HSI48RDY);
+#elif defined(STM32G4)
+    /* using HSI16 as AHB/CPU clock, HSI48 as USB PHY clock */
+    _BST(RCC->CRRCR, RCC_CRRCR_HSI48ON);
+    _WBS(RCC->CRRCR, RCC_CRRCR_HSI48RDY);
+#elif defined(STM32WB55xx)
+    /* using HSI16 as AHB/CPU clock, HSI48 as USB PHY clock */
+    _BST(RCC->CR, RCC_CR_HSION);
+    _WBS(RCC->CR, RCC_CR_HSIRDY);
+    _BMD(RCC->CFGR, RCC_CFGR_SW, (0x01UL << RCC_CFGR_SW_Pos)); // HSI16
+    _WVL(RCC->CFGR, RCC_CFGR_SWS, (0x01UL << RCC_CFGR_SWS_Pos));
+    _BST(RCC->CRRCR, RCC_CRRCR_HSI48ON);
+    _WBS(RCC->CRRCR, RCC_CRRCR_HSI48RDY);
+    _BMD(RCC->CCIPR, RCC_CCIPR_CLK48SEL, 0);
+    /* setup PA11 PA12 to AF10 (USB FS) */
+    _BST(RCC->AHB2ENR, RCC_AHB2ENR_GPIOAEN);
+    _BMD(GPIOA->MODER, (0x03 << 22) | (0x03 << 24), (0x02 << 22) | (0x02 << 24));
+    _BST(GPIOA->AFR[1], (0x0A << 12) | (0x0A << 16));
+    /* Disabling USB Vddusb power isolation. Vusb connected to Vdd */
+    _BST(PWR->CR2, PWR_CR2_USV);
+#elif defined(STM32H743xx)
+    /* Enable USB supply */
+    _BST(PWR->CR3, PWR_CR3_SCUEN | PWR_CR3_LDOEN | PWR_CR3_USB33DEN);
+
+    /* Enable HSI48 and use as USB PHY clock */
+    _BST(RCC->CR, RCC_CR_HSI48ON);
+    _WBS(RCC->CR, RCC_CR_HSI48RDY);
+    _BMD(RCC->D2CCIP2R, RCC_D2CCIP2R_USBSEL, 3 << RCC_D2CCIP2R_USBSEL_Pos);
+
+    /* enabling GPIOA and setting PA11 and PA12 to AF10 (USB_FS) */
+    _BST(RCC->AHB4ENR, RCC_AHB4ENR_GPIOAEN);
+    _BMD(GPIOA->MODER, (0x03 << 22) | (0x03 << 24), (0x02 << 22) | (0x02 << 24));
+    _BST(GPIOA->AFR[1], (0x0A << 12) | (0x0A << 16));
 #else
     #error Not supported
 #endif

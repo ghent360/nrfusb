@@ -34,6 +34,7 @@ class Stm32G4Flash : public mjlib::micro::FlashInterface {
   }
 
   void Erase() override {
+/*    
     uint32_t page_err = 0;
     FLASH_EraseInitTypeDef erase_options{};
     erase_options.TypeErase = FLASH_TYPEERASE_PAGES;
@@ -46,20 +47,24 @@ class Stm32G4Flash : public mjlib::micro::FlashInterface {
     if (page_err != 0xffffffff) {
       mbed_die();
     }
+*/    
   }
 
   void Unlock() override {
-    HAL_FLASH_Unlock();
+//    HAL_FLASH_Unlock();
   }
 
   void Lock() override {
+/*    
     if (shadow_bits_) {
       FlushWord();
     }
     HAL_FLASH_Lock();
+*/    
   }
 
   void ProgramByte(char* ptr, uint8_t value) override {
+/*    
     const uint32_t intaddr = reinterpret_cast<uint32_t>(ptr);
     const uint32_t this_shadow = intaddr & ~(0x7);
     const uint32_t offset = intaddr & 0x7;
@@ -76,14 +81,17 @@ class Stm32G4Flash : public mjlib::micro::FlashInterface {
     if (shadow_bits_ == 0xffffffffffffffffull) {
       FlushWord();
     }
+*/    
   }
 
  private:
   void FlushWord() {
+/*    
     HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, shadow_start_, shadow_);
     shadow_start_ = 0;
     shadow_ = 0;
     shadow_bits_ = 0;
+*/
   }
 
   uint32_t shadow_start_ = 0;

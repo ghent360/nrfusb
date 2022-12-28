@@ -16,7 +16,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-#include "stm32.h"
+#include "stm32_compat.h"
 #include "usb.h"
 #include "usb_cdc.h"
 #include "usb_hid.h"
@@ -298,7 +298,7 @@ static usbd_respond cdc_getdesc (usbd_ctlreq *req, void **address, uint16_t *len
     *address = (void*)desc;
     *length = len;
     return usbd_ack;
-};
+}
 
 
 static usbd_respond cdc_control(usbd_device *dev, usbd_ctlreq *req, usbd_rqc_callback *callback) {
@@ -308,7 +308,7 @@ static usbd_respond cdc_control(usbd_device *dev, usbd_ctlreq *req, usbd_rqc_cal
         case USB_CDC_SET_CONTROL_LINE_STATE:
             return usbd_ack;
         case USB_CDC_SET_LINE_CODING:
-            memcpy( req->data, &cdc_line, sizeof(cdc_line));
+            memcpy(&cdc_line, req->data, sizeof(cdc_line));
             return usbd_ack;
         case USB_CDC_GET_LINE_CODING:
             dev->status.data_ptr = &cdc_line;
@@ -363,6 +363,14 @@ static void cdc_txonly(usbd_device *dev, uint8_t event, uint8_t ep) {
     usbd_ep_write(dev, ep, fifo, CDC_DATA_SZ);
 }
 
+static void cdc_rxtx(usbd_device *dev, uint8_t event, uint8_t ep) {
+    if (event == usbd_evt_eptx) {
+        cdc_txonly(dev, event, ep);
+    } else {
+        cdc_rxonly(dev, event, ep);
+    }
+}
+
 /* HID mouse IN endpoint callback */
 static void hid_mouse_move(usbd_device *dev, uint8_t event, uint8_t ep) {
     static uint8_t t = 0;
@@ -398,23 +406,18 @@ static void hid_mouse_move(usbd_device *dev, uint8_t event, uint8_t ep) {
 /* CDC loop callback. Both for the Data IN and Data OUT endpoint */
 static void cdc_loopback(usbd_device *dev, uint8_t event, uint8_t ep) {
     int _t;
-    switch (event) {
-    case usbd_evt_eptx:
+    if (fpos <= (sizeof(fifo) - CDC_DATA_SZ)) {
+        _t = usbd_ep_read(dev, CDC_RXD_EP, &fifo[fpos], CDC_DATA_SZ);
+        if (_t > 0) {
+            fpos += _t;
+        }
+    }
+    if (fpos > 0) {
         _t = usbd_ep_write(dev, CDC_TXD_EP, &fifo[0], (fpos < CDC_DATA_SZ) ? fpos : CDC_DATA_SZ);
         if (_t > 0) {
             memmove(&fifo[0], &fifo[_t], fpos - _t);
             fpos -= _t;
         }
-        break;
-    case usbd_evt_eprx:
-        if (fpos < (sizeof(fifo) - CDC_DATA_SZ)) {
-            _t = usbd_ep_read(dev, CDC_RXD_EP, &fifo[fpos], CDC_DATA_SZ);
-            if (_t > 0) {
-                fpos += _t;
-            }
-        }
-    default:
-        break;
     }
 }
 
@@ -440,6 +443,9 @@ static usbd_respond cdc_setconf (usbd_device *dev, uint8_t cfg) {
 #if defined(CDC_LOOPBACK)
         usbd_reg_endpoint(dev, CDC_RXD_EP, cdc_loopback);
         usbd_reg_endpoint(dev, CDC_TXD_EP, cdc_loopback);
+#elif ((CDC_TXD_EP & 0x7F) == (CDC_RXD_EP & 0x7F))
+        usbd_reg_endpoint(dev, CDC_RXD_EP, cdc_rxtx);
+        usbd_reg_endpoint(dev, CDC_TXD_EP, cdc_rxtx);
 #else
         usbd_reg_endpoint(dev, CDC_RXD_EP, cdc_rxonly);
         usbd_reg_endpoint(dev, CDC_TXD_EP, cdc_txonly);
@@ -464,13 +470,26 @@ static void cdc_init_usbd(void) {
 }
 
 #if defined(CDC_USE_IRQ)
-#if defined(STM32L052xx) || defined(STM32F070xB)
-    #define USB_HANDLER     USB_IRQHandler
+#if defined(STM32L052xx) || defined(STM32F070xB) || \
+	defined(STM32F042x6)
+#define USB_HANDLER     USB_IRQHandler
     #define USB_NVIC_IRQ    USB_IRQn
-#elif defined(STM32L100xC)
+#elif defined(STM32L100xC) || defined(STM32G4)
     #define USB_HANDLER     USB_LP_IRQHandler
     #define USB_NVIC_IRQ    USB_LP_IRQn
-#elif defined(STM32L476xx)
+#elif defined(USBD_PRIMARY_OTGHS) && \
+    (defined(STM32F446xx) || defined(STM32F429xx))
+    #define USB_HANDLER     OTG_HS_IRQHandler
+    #define USB_NVIC_IRQ    OTG_HS_IRQn
+    /* WA. With __WFI/__WFE interrupt will not be fired
+     * faced with F4 series and OTGHS only
+     */
+    #undef  __WFI
+    #define __WFI __NOP
+#elif defined(STM32L476xx) || defined(STM32F429xx) || \
+      defined(STM32F105xC) || defined(STM32F107xC) || \
+      defined(STM32F446xx) || defined(STM32F411xE) || \
+      defined(STM32H743xx)
     #define USB_HANDLER     OTG_FS_IRQHandler
     #define USB_NVIC_IRQ    OTG_FS_IRQn
 #elif defined(STM32F103x6)
@@ -479,9 +498,6 @@ static void cdc_init_usbd(void) {
 #elif defined(STM32F103xE)
     #define USB_HANDLER     USB_LP_CAN1_RX0_IRQHandler
     #define USB_NVIC_IRQ    USB_LP_CAN1_RX0_IRQn
-#elif defined(STM32F429xx) || defined(STM32F105xC) || defined(STM32F107xC)
-    #define USB_HANDLER     OTG_FS_IRQHandler
-    #define USB_NVIC_IRQ    OTG_FS_IRQn
 #else
     #error Not supported
 #endif
@@ -500,12 +516,13 @@ void main(void) {
     }
 }
 #else
-void main(void) {
+int main(void) {
     cdc_init_usbd();
     usbd_enable(&udev, true);
     usbd_connect(&udev, true);
     while(1) {
         usbd_poll(&udev);
     }
+    return 0;
 }
 #endif

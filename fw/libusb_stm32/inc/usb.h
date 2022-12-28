@@ -46,7 +46,8 @@
 
 #elif defined(STM32L432xx) || defined(STM32L433xx) || \
       defined(STM32L442xx) || defined(STM32L443xx) || \
-      defined(STM32L452xx) || defined(STM32L462xx)
+      defined(STM32L452xx) || defined(STM32L462xx) || \
+      defined(STM32G4)
 
     #define USBD_STM32L433
 
@@ -86,10 +87,33 @@
 #elif defined(STM32F405xx) || defined(STM32F415xx) || \
       defined(STM32F407xx) || defined(STM32F417xx) || \
       defined(STM32F427xx) || defined(STM32F437xx) || \
-      defined(STM32F429xx) || defined(STM32F439xx)
+      defined(STM32F429xx) || defined(STM32F439xx) || \
+      defined(TARGET_STM32F407)
 
     #define USBD_STM32F429FS
     #define USBD_STM32F429HS
+
+    #if !defined(__ASSEMBLER__)
+    extern const struct usbd_driver usbd_otgfs;
+    extern const struct usbd_driver usbd_otghs;
+    #if defined(USBD_PRIMARY_OTGHS)
+    #define usbd_hw usbd_otghs
+    #else
+    #define usbd_hw usbd_otgfs
+    #endif
+    #endif  //__ASSEMBLER__
+
+#elif defined(STM32F411xE) || defined(STM32F401xC) || defined(STM32F401xE)
+
+    #define USBD_STM32F429FS
+    #if !defined(__ASSEMBLER__)
+    extern const struct usbd_driver usbd_otgfs;
+    #endif
+    #define usbd_hw usbd_otgfs
+
+#elif defined(STM32F446xx) || defined(STM32F722xx) || defined (STM32F745xx)
+    #define USBD_STM32F446FS
+    #define USBD_STM32F446HS
 
     #if !defined(__ASSEMBLER__)
     extern const struct usbd_driver usbd_otgfs;
@@ -128,19 +152,21 @@
     #define usbd_hw usbd_otgfs
     #endif
 
-#elif defined(TARGET_STM32G474xE)
-
-    #define USBD_STM32G474
+#elif defined(STM32WB55xx)
+    #define USBD_STM32WB55
 
     #if !defined(__ASSEMBLER__)
     extern const struct usbd_driver usbd_devfs;
-    extern const struct usbd_driver usbd_devfs_asm;
-    #if defined(USBD_ASM_DRIVER)
-    #define usbd_hw usbd_devfs_asm
-    #else
     #define usbd_hw usbd_devfs
     #endif
-    #endif
+
+#elif defined(STM32H743xx)
+    #define USBD_STM32H743FS
+
+    #if !defined(__ASSEMBLER__)
+    extern const struct usbd_driver usbd_otgfs;
+    #define usbd_hw usbd_otgfs
+    #endif  //__ASSEMBLER__
 
 #else
     #error Unsupported STM32 family

@@ -18,7 +18,7 @@
 #include "stm32_compat.h"
 #include "usb.h"
 
-#if defined(USBD_STM32L433)
+#if defined(USBD_STM32WB55)
 
 #ifndef USB_PMASIZE
     #pragma message "PMA memory size is not defined. Use 1k by default"
@@ -70,14 +70,14 @@ typedef union pma_table {
 /** \brief Helper function. Returns pointer to the buffer descriptor table.
  */
 inline static pma_table *EPT(uint8_t ep) {
-    return (pma_table*)((ep & 0x07) * 8 + USB_PMAADDR);
+    return (pma_table*)((ep & 0x07) * 8 + USB1_PMAADDR);
 
 }
 
 /** \brief Helper function. Returns pointer to the endpoint control register.
  */
 inline static volatile uint16_t *EPR(uint8_t ep) {
-    return (uint16_t*)((ep & 0x07) * 4 + USB_BASE);
+    return (uint16_t*)((ep & 0x07) * 4 + USB1_BASE);
 }
 
 
@@ -94,7 +94,7 @@ static uint16_t get_next_pma(uint16_t sz) {
         if ((tbl->rx.addr) && (tbl->rx.addr < _result)) _result = tbl->rx.addr;
         if ((tbl->tx.addr) && (tbl->tx.addr < _result)) _result = tbl->tx.addr;
     }
-    return (_result < (0x020 + sz)) ? 0 : (_result - sz);
+    return (_result < (unsigned)(0x020 + sz)) ? 0 : (_result - sz);
 }
 
 static uint32_t getinfo(void) {
@@ -272,7 +272,7 @@ static void ep_deconfig(uint8_t ep) {
 }
 
 static uint16_t pma_read (uint8_t *buf, uint16_t blen, pma_rec *rx) {
-    uint16_t *pma = (void*)(USB_PMAADDR + rx->addr);
+    uint16_t *pma = (void*)(USB1_PMAADDR + rx->addr);
     uint16_t rxcnt = rx->cnt & 0x03FF;
     rx->cnt &= ~0x3FF;
 
@@ -336,7 +336,7 @@ static int32_t ep_read(uint8_t ep, void *buf, uint16_t blen) {
 }
 
 static void pma_write(const uint8_t *buf, uint16_t blen, pma_rec *tx) {
-    uint16_t *pma = (void*)(USB_PMAADDR + tx->addr);
+    uint16_t *pma = (void*)(USB1_PMAADDR + tx->addr);
     tx->cnt = blen;
     while (blen > 1) {
         *pma++ = buf[1] << 8 | buf[0];
@@ -417,8 +417,8 @@ static void evt_poll(usbd_device *dev, usbd_evt_callback callback) {
         USB->ISTR &= ~USB_ISTR_WKUP;
     } else if (_istr & USB_ISTR_SUSP) {
         _ev = usbd_evt_susp;
-        USB->CNTR |= USB_CNTR_FSUSP;
         USB->ISTR &= ~USB_ISTR_SUSP;
+        USB->CNTR |= USB_CNTR_FSUSP;
     } else if (_istr & USB_ISTR_ERR) {
         USB->ISTR &= ~USB_ISTR_ERR;
         _ev = usbd_evt_error;
@@ -470,4 +470,4 @@ static uint16_t get_serialno_desc(void *buffer) {
     get_serialno_desc,
 };
 
-#endif //USBD_STM32L052
+#endif //USBD_STM32WB55

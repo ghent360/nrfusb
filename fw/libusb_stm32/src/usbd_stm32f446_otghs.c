@@ -18,32 +18,32 @@
 #include "stm32_compat.h"
 #include "usb.h"
 
-#if defined(USBD_STM32F429FS)
+#if defined(USBD_STM32F446HS)
 
-#define MAX_EP          4
+#define MAX_EP          9
 #define MAX_RX_PACKET   128
 #define MAX_CONTROL_EP  1
-#define MAX_FIFO_SZ     320  /*in 32-bit chunks */
+#define MAX_FIFO_SZ     1024  /*in 32-bit chunks */
 
 #define RX_FIFO_SZ      ((4 * MAX_CONTROL_EP + 6) + ((MAX_RX_PACKET / 4) + 1) + (MAX_EP * 2) + 1)
 
 #define STATUS_VAL(x)   (USBD_HW_ADDRFST | (x))
 
-static USB_OTG_GlobalTypeDef * const OTG  = (void*)(USB_OTG_FS_PERIPH_BASE + USB_OTG_GLOBAL_BASE);
-static USB_OTG_DeviceTypeDef * const OTGD = (void*)(USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE);
-static volatile uint32_t * const OTGPCTL  = (void*)(USB_OTG_FS_PERIPH_BASE + USB_OTG_PCGCCTL_BASE);
+static USB_OTG_GlobalTypeDef * const OTG  = (void*)(USB_OTG_HS_PERIPH_BASE + USB_OTG_GLOBAL_BASE);
+static USB_OTG_DeviceTypeDef * const OTGD = (void*)(USB_OTG_HS_PERIPH_BASE + USB_OTG_DEVICE_BASE);
+static volatile uint32_t * const OTGPCTL  = (void*)(USB_OTG_HS_PERIPH_BASE + USB_OTG_PCGCCTL_BASE);
 
 
 inline static uint32_t* EPFIFO(uint32_t ep) {
-    return (uint32_t*)(USB_OTG_FS_PERIPH_BASE + USB_OTG_FIFO_BASE + (ep << 12));
+    return (uint32_t*)(USB_OTG_HS_PERIPH_BASE + USB_OTG_FIFO_BASE + (ep << 12));
 }
 
 inline static USB_OTG_INEndpointTypeDef* EPIN(uint32_t ep) {
-    return (void*)(USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE + (ep << 5));
+    return (void*)(USB_OTG_HS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE + (ep << 5));
 }
 
 inline static USB_OTG_OUTEndpointTypeDef* EPOUT(uint32_t ep) {
-    return (void*)(USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE + (ep << 5));
+    return (void*)(USB_OTG_HS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE + (ep << 5));
 }
 
 inline static void Flush_RX(void) {
@@ -102,24 +102,19 @@ static bool ep_isstalled(uint8_t ep) {
 static void enable(bool enable) {
     if (enable) {
         /* enabling USB_OTG in RCC */
-        _BST(RCC->AHB2ENR, RCC_AHB2ENR_OTGFSEN);
-        /* waiting AHB ready */
+        _BST(RCC->AHB1ENR, RCC_AHB1ENR_OTGHSEN);
         _WBS(OTG->GRSTCTL, USB_OTG_GRSTCTL_AHBIDL);
         /* configure OTG as device */
-        _BMD(OTG->GUSBCFG,
-             USB_OTG_GUSBCFG_SRPCAP | _VAL2FLD(USB_OTG_GUSBCFG_TRDT, 0x0F),
-             USB_OTG_GUSBCFG_FDMOD  | _VAL2FLD(USB_OTG_GUSBCFG_TRDT, 0x06));
-        /* configuring Vbus sense and SOF output */
-#if defined (USBD_VBUS_DETECT) && defined(USBD_SOF_OUT)
-        OTG->GCCFG = USB_OTG_GCCFG_VBUSBSEN | USB_OTG_GCCFG_SOFOUTEN;
-#elif defined(USBD_VBUS_DETECT)
-         OTG->GCCFG = USB_OTG_GCCFG_VBUSBSEN;
-#elif defined(USBD_SOF_OUT)
-        OTG->GCCFG = USB_OTG_GCCFG_NOVBUSSENS | USB_OTG_GCCFG_SOFOUTEN;
+        OTG->GUSBCFG = USB_OTG_GUSBCFG_FDMOD | USB_OTG_GUSBCFG_PHYSEL |
+                       _VAL2FLD(USB_OTG_GUSBCFG_TRDT, 0x06);
+        /* configuring Vbus sense and powerup PHY */
+#if defined(USBD_VBUS_DETECT)
+        OTG->GCCFG |= USB_OTG_GCCFG_VBDEN | USB_OTG_GCCFG_PWRDWN;
 #else
-        OTG->GCCFG = USB_OTG_GCCFG_NOVBUSSENS;
+        OTG->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN | USB_OTG_GOTGCTL_BVALOVAL;
+        OTG->GCCFG = USB_OTG_GCCFG_PWRDWN;
 #endif
-        /* enable PHY clock */
+        /* restart PHY*/
         *OTGPCTL = 0;
         /* soft disconnect device */
         _BST(OTGD->DCTL, USB_OTG_DCTL_SDIS);
@@ -142,25 +137,21 @@ static void enable(bool enable) {
         /* clear pending interrupts */
         OTG->GINTSTS = 0xFFFFFFFF;
         /* unmask global interrupt */
-        _BST(OTG->GAHBCFG, USB_OTG_GAHBCFG_GINT);
+        OTG->GAHBCFG = USB_OTG_GAHBCFG_GINT;
     } else {
-        if (RCC->AHB2ENR & RCC_AHB2ENR_OTGFSEN) {
-            _BST(RCC->AHB2RSTR, RCC_AHB2RSTR_OTGFSRST);
-            _BCL(RCC->AHB2RSTR, RCC_AHB2RSTR_OTGFSRST);
-            _BCL(RCC->AHB2ENR, RCC_AHB2ENR_OTGFSEN);
+        if (RCC->AHB1ENR & RCC_AHB1ENR_OTGHSEN) {
+            _BST(RCC->AHB1RSTR, RCC_AHB1RSTR_OTGHRST);
+            _BCL(RCC->AHB1RSTR, RCC_AHB1RSTR_OTGHRST);
+            _BCL(RCC->AHB1ENR, RCC_AHB1ENR_OTGHSEN);
         }
     }
 }
 
 static uint8_t connect(bool connect) {
     if (connect) {
-/* The ST made a strange thing again. Really i dont'understand what is the reason to name
-   signal as PWRDWN (Power down PHY) when it works as "Power up" */
-        _BST(OTG->GCCFG, USB_OTG_GCCFG_PWRDWN);
         _BCL(OTGD->DCTL, USB_OTG_DCTL_SDIS);
     } else {
         _BST(OTGD->DCTL, USB_OTG_DCTL_SDIS);
-        _BCL(OTG->GCCFG, USB_OTG_GCCFG_PWRDWN);
     }
     return usbd_lane_unk;
 }
@@ -319,10 +310,11 @@ static void ep_deconfig(uint8_t ep) {
 
 static int32_t ep_read(uint8_t ep, void* buf, uint16_t blen) {
     uint32_t len, tmp;
+    ep &= 0x7F;
     volatile uint32_t *fifo = EPFIFO(0);
+    USB_OTG_OUTEndpointTypeDef* epo = EPOUT(ep);
     /* no data in RX FIFO */
     if (!(OTG->GINTSTS & USB_OTG_GINTSTS_RXFLVL)) return -1;
-    ep &= 0x7F;
     if ((OTG->GRXSTSR & USB_OTG_GRXSTSP_EPNUM) != ep) return -1;
     /* pop data from fifo */
     len = _FLD2VAL(USB_OTG_GRXSTSP_BCNT, OTG->GRXSTSP);
@@ -335,6 +327,7 @@ static int32_t ep_read(uint8_t ep, void* buf, uint16_t blen) {
             tmp >>= 8;
         }
     }
+    _BST(epo->DOEPCTL, USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA);
     return (len < blen) ? len : blen;
 }
 
@@ -400,21 +393,13 @@ static void evt_poll(usbd_device *dev, usbd_evt_callback callback) {
             _t = OTG->GRXSTSR;
             ep = _t & USB_OTG_GRXSTSP_EPNUM;
             switch (_FLD2VAL(USB_OTG_GRXSTSP_PKTSTS, _t)) {
-            case 0x02:  /* OUT recieved */
+            case 0x02:
                 evt = usbd_evt_eprx;
                 break;
-            case 0x06:  /* SETUP recieved */
-                /* flushing TX if sonething stuck in control endpoint */
-                if (EPIN(ep)->DIEPTSIZ & USB_OTG_DIEPTSIZ_PKTCNT) {
-                    Flush_TX(ep);
-                }
+            case 0x06:
                 evt = usbd_evt_epsetup;
                 break;
-            case 0x03:  /* OUT completed */
-            case 0x04:  /* SETUP completed */
-                _BST(EPOUT(ep)->DOEPCTL, USB_OTG_DOEPCTL_CNAK | USB_OTG_DOEPCTL_EPENA);
             default:
-                /* pop GRXSTSP */
                 OTG->GRXSTSP;
                 continue;
             }
@@ -463,7 +448,7 @@ static uint16_t get_serialno_desc(void *buffer) {
     return 18;
 }
 
- __attribute__((externally_visible)) const struct usbd_driver usbd_otgfs = {
+ __attribute__((externally_visible)) const struct usbd_driver usbd_otghs = {
     getinfo,
     enable,
     connect,
@@ -479,4 +464,4 @@ static uint16_t get_serialno_desc(void *buffer) {
     get_serialno_desc,
 };
 
-#endif //USBD_STM32F429FS
+#endif //USBD_STM32L446FS

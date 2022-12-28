@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+#ifdef TARGET_STM32G4
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -465,3 +465,5 @@ uint16_t get_serialno_desc(void *buffer) {
     get_frame,
     get_serialno_desc,
 };
+
+#endif // TARGET_STM32G4
