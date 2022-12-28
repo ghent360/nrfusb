@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-workspace(name = "com_github_mjbots_fdcan_test")
+workspace(name = "com_github_ghent360_nrfusb")
 
 BAZEL_VERSION = "0.28.1"
 BAZEL_VERSION_SHA = "daa27fbf9213b3dbc8509a8481f7d99cce6815cf54c50d5d3af5ec2b4c41d31f"
@@ -31,6 +31,7 @@ mbed_register(
         "mbed_config": {
             "MBED_CONF_RTOS_PRESENT": "0",
             "DEVICE_STDIO_MESSAGES": "0",
+            "CLOCK_SOURCE": "USE_PLL_HSE_XTAL"
         },
     },
 )
