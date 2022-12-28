@@ -130,7 +130,7 @@
       defined(STM32F103xE) || defined(STM32F103xG) || \
       defined(STM32F302x8) || defined(STM32F302xC) || defined(STM32F302xE) || \
       defined(STM32F303xC) || defined(STM32F303xE) || \
-      defined(STM32F373xC)
+      defined(STM32F373xC) || defined(TARGET_STM32F103C8)
 
     #define USBD_STM32F103
 

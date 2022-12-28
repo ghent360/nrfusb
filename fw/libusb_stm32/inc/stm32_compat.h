@@ -21,9 +21,9 @@
 /* bit value */
 #define _BV(bit)                (0x01 << (bit))
 
-#if defined(STM32F0xx)
+#if defined(STM32F0xx) || defined(TARGET_STM32F0)
     #include <stm32f0xx.h>
-#elif defined(STM32F1xx)
+#elif defined(STM32F1xx) || defined(TARGET_STM32F1)
     #include <stm32f1xx.h>
 #elif defined(STM32F2xx)
     #include <stm32f2xx.h>
@@ -45,7 +45,7 @@
     #include <stm32l5xx.h>
 #elif defined(STM32G0xx)
     #include <stm32g0xx.h>
-#elif defined(STM32G4xx)
+#elif defined(STM32G4xx) || defined(TARGET_STM32G4)
     #include <stm32g4xx.h>
 #elif defined(STM32WBxx)
     #include <stm32wbxx.h>

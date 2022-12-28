@@ -66,7 +66,8 @@ void usb_init_rcc (void) {
     _BST(GPIOA->AFR[1], (0x0A << 12) | (0x0A << 16));
     _BMD(GPIOA->MODER, (0x03 << 22) | (0x03 << 24), (0x02 << 22) | (0x02 << 24));
 
-#elif defined(STM32F103x6)
+#elif defined(STM32F103x6) || defined(TARGET_STM32F103C8)
+#if 0
     /* set flash latency 1WS */
     _BMD(FLASH->ACR, FLASH_ACR_LATENCY, FLASH_ACR_LATENCY_1);
     /* use PLL 48MHz clock from 8Mhz HSI */
@@ -78,7 +79,7 @@ void usb_init_rcc (void) {
     /* switch to PLL */
     _BMD(RCC->CFGR, RCC_CFGR_SW, RCC_CFGR_SW_PLL);
     _WVL(RCC->CFGR, RCC_CFGR_SWS, RCC_CFGR_SWS_PLL);
-
+#endif
 #elif defined(STM32F303xE)
     /* set flash latency 1WS */
     _BMD(FLASH->ACR, FLASH_ACR_LATENCY, FLASH_ACR_LATENCY_1);
@@ -268,7 +269,7 @@ void usb_init_rcc (void) {
     /* use HSI48 as clock incl. USB PHY clock, no PLL */
 	_BST(RCC->CR2, RCC_CR2_HSI48ON);
 	_WBS(RCC->CR2, RCC_CR2_HSI48RDY);
-#elif defined(STM32G4)
+#elif defined(STM32G4) || defined(TARGET_STM32G4)
     /* using HSI16 as AHB/CPU clock, HSI48 as USB PHY clock */
     _BST(RCC->CRRCR, RCC_CRRCR_HSI48ON);
     _WBS(RCC->CRRCR, RCC_CRRCR_HSI48RDY);

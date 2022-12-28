@@ -20,6 +20,6 @@ def rules_mbed_repository():
     github_archive(
         name = "com_github_ghent360_rules_mbed",
         repo = "ghent360/rules_mbed",
-        commit = "e9943e50f020d0c35decce10a0aacd7f4bc9d8c5",
-        sha256 = "a40f0ddf63d93d19559e4fe9d32695096dc6c64d01771d8348fd73deb8ab522c",
+        commit = "553c6541a03cd12b02bd7af4db6aec2cc79bfcb0",
+        sha256 = "d792b84931e856b0c6e255cca67c91598847565f56c4cd5b55031d59708d2236",
     )

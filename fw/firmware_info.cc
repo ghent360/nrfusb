@@ -36,6 +36,10 @@ class FirmwareInfo::Impl {
             0x1fff7a10
 #elif defined(TARGET_STM32G4)
             0x1fff7590
+#elif defined(TARGET_STM32F1)
+            0x1ffff7e8
+#elif defined(TARGET_STM32F0)
+            0x1ffff7ac
 #else
 #error "Unknown target"
 #endif

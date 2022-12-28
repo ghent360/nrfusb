@@ -19,49 +19,66 @@
 namespace fw {
 
 class MillisecondTimer {
- public:
+public:
   MillisecondTimer() {
-    __HAL_RCC_TIM5_CLK_ENABLE();
+    __HAL_RCC_TIM4_CLK_ENABLE();
+    __HAL_RCC_TIM3_CLK_ENABLE();
 
-    handle_.Instance = TIM5;
-    handle_.Init.Period = 0xFFFFFFFF;
-    handle_.Init.Prescaler =
+    handle3_.Instance = TIM3;
+    handle3_.Init.Period = 0xFFFF;
+    handle3_.Init.Prescaler =
         (uint32_t)(2 * HAL_RCC_GetPCLK1Freq() / 1000000U) - 1;  // 1 us tick
-    handle_.Init.ClockDivision = 0;
-    handle_.Init.CounterMode = TIM_COUNTERMODE_UP;
-    handle_.Init.RepetitionCounter = 0;
+    handle3_.Init.ClockDivision = 0;
+    handle3_.Init.CounterMode = TIM_COUNTERMODE_UP;
+    handle3_.Init.RepetitionCounter = 0;
 
-    HAL_TIM_Base_Init(&handle_);
-    HAL_TIM_Base_Start(&handle_);
+    HAL_TIM_Base_Init(&handle3_);
+    HAL_TIM_Base_Start(&handle3_);
+
+    handle4_.Instance = TIM4;
+    handle4_.Init.Period = 0xFFFF;
+    handle4_.Init.Prescaler =
+        (uint32_t)(2 * HAL_RCC_GetPCLK1Freq() / 1000U) - 1;  // 1 ms tick
+    handle4_.Init.ClockDivision = 0;
+    handle4_.Init.CounterMode = TIM_COUNTERMODE_UP;
+    handle4_.Init.RepetitionCounter = 0;
+
+    HAL_TIM_Base_Init(&handle4_);
+    HAL_TIM_Base_Start(&handle4_);
   }
 
   uint32_t read_ms() {
-    return TIM5->CNT / 1000;
-  }
-
-  uint32_t read_us() {
-    return TIM5->CNT;
+    return TIM4->CNT;
   }
 
   void wait_ms(uint32_t delay_ms) {
-    wait_us(delay_ms * 1000);
+    uint32_t current = TIM4->CNT;
+    uint32_t elapsed = 0;
+    while (true) {
+      const uint32_t next = TIM4->CNT;
+      elapsed += next - current;
+      // We check delay_ms + 1 since we don't know where in the
+      // current microsecond we started.
+      if (elapsed >= (delay_ms + 1)) { return; }
+      current = next;
+    }
   }
 
   void wait_us(uint32_t delay_us) {
-    uint32_t current = TIM5->CNT;
+    uint32_t current = TIM3->CNT;
     uint32_t elapsed = 0;
     while (true) {
-      const uint32_t next = TIM5->CNT;
+      const uint32_t next = TIM3->CNT;
       elapsed += next - current;
-      // We check delay_us + 1 since we don't know where in the
+      // We check delay_ms + 1 since we don't know where in the
       // current microsecond we started.
       if (elapsed >= (delay_us + 1)) { return; }
       current = next;
     }
   }
-
- private:
-  TIM_HandleTypeDef handle_ = {};
+private:
+  TIM_HandleTypeDef handle3_ = {};
+  TIM_HandleTypeDef handle4_ = {};
 };
 
 }
