@@ -80,8 +80,8 @@ int main(void) {
         pins.miso = PA_6;
         pins.sck = PA_5;
         pins.cs = PA_4;
-        pins.irq = PB_1;
-        pins.ce = PB_0;
+        pins.irq = PA_3;
+        pins.ce = PA_8;
 
         return options;
       }());
