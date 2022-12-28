@@ -4,11 +4,11 @@ test --compiler=compiler
 build --cpu=stm32f4
 test --cpu=stm32f4
 
-build --crosstool_top=@com_github_mjbots_rules_mbed//tools/cc_toolchain:toolchain
-test --crosstool_top=@com_github_mjbots_rules_mbed//tools/cc_toolchain:toolchain
+build --crosstool_top=@com_github_ghent360_rules_mbed//tools/cc_toolchain:toolchain
+test --crosstool_top=@com_github_ghent360_rules_mbed//tools/cc_toolchain:toolchain
 
-build --auto_cpu_environment_group=@com_github_mjbots_rules_mbed//tools:cpus
-test --auto_cpu_environment_group=@com_github_mjbots_rules_mbed//tools:cpus
+build --auto_cpu_environment_group=@com_github_ghent360_rules_mbed//tools:cpus
+test --auto_cpu_environment_group=@com_github_ghent360_rules_mbed//tools:cpus
 
 build --nostart_end_lib
 test --nostart_end_lib

@@ -23,7 +23,7 @@ load("//tools/workspace:default.bzl", "add_default_repositories")
 
 add_default_repositories()
 
-load("@com_github_mjbots_rules_mbed//:rules.bzl", mbed_register = "mbed_register")
+load("@com_github_ghent360_rules_mbed//:rules.bzl", mbed_register = "mbed_register")
 
 mbed_register(
     config = {
